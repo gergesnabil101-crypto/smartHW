@@ -1,0 +1,362 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /test_auth/{docId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && (
+        (request.auth.token.email != null && (request.auth.token.email == 'gergesnabil101@gmail.com' || request.auth.token.email == 'Gergesnabil101@gmail.com')) ||
+        (request.auth.token.role != null && request.auth.token.role == 'admin') ||
+        (request.auth.token.admin != null && request.auth.token.admin == true)
+      );
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['id', 'uid', 'email', 'name', 'phone', 'role', 'created_at', 'subscription_type', 'billing_cycle', 'subscription_end_date', 'subscription_start_date', 'subscription_renewal_date', 'avatar_data', 'subject', 'grade_level', 'curriculum', 'centers', 'subscription_status', 'hasAccess', 'tokens_used', 'tokens_used_total', 'tokens_used_today', 'tokens_used_yesterday', 'last_token_reset_date', 'last_token_reconciliation_date', 'trial_extended_until', 'preferred_ai_model', 'updated_at', 'last_active_at', 'isTrialActive', 'whatsapp', 'notes', 'is_suspended', 'hasPendingSubscription', 'extra_tokens', 'subscriptionStatus', 'subscriptionPlan', 'subscriptionEndDate', 'custom_tokens_millions', 'custom_plan_name', 'custom_monthly_price', 'custom_yearly_price', 'custom_essay_limit', 'custom_ai_engine', 'custom_notes', 'isPendingRequestOnly', 'requestId', 'isAdmin', 'user_id', 'user_name', 'user_email', 'user_phone', 'user_subject']) &&
+             (!('id' in data) || (data.id is string && data.id.size() > 0)) &&
+             data.email is string && data.email.size() > 0 && data.email.size() < 100 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             (!('phone' in data) || data.phone is string) &&
+             (!('whatsapp' in data) || data.whatsapp is string) &&
+             (!('notes' in data) || data.notes is string) &&
+             (!('avatar_data' in data) || (data.avatar_data is string && data.avatar_data.size() < 1000000)) &&
+             (!('role' in data) || data.role in ['admin', 'user']) &&
+             (!('created_at' in data) || data.created_at is string) &&
+             (!('updated_at' in data) || data.updated_at is string) &&
+             (!('last_active_at' in data) || data.last_active_at is string) &&
+             (!('trial_extended_until' in data) || data.trial_extended_until is string) &&
+             (!('preferred_ai_model' in data) || data.preferred_ai_model is string) &&
+             (!('isTrialActive' in data) || data.isTrialActive is bool) &&
+             (!('subscription_status' in data) || data.subscription_status is string) &&
+             (!('subscriptionStatus' in data) || data.subscriptionStatus is string) &&
+             (!('subscriptionPlan' in data) || data.subscriptionPlan is string) &&
+             (!('subscriptionEndDate' in data) || data.subscriptionEndDate is string) &&
+             (!('billing_cycle' in data) || data.billing_cycle is string) &&
+             (!('hasAccess' in data) || data.hasAccess is bool) &&
+             (!('is_suspended' in data) || data.is_suspended is bool) &&
+             (!('subscription_type' in data) || data.subscription_type is string) &&
+             (!('subscription_end_date' in data) || data.subscription_end_date is string || data.subscription_end_date == null) &&
+             (!('subscription_start_date' in data) || data.subscription_start_date is string || data.subscription_start_date == null) &&
+             (!('subscription_renewal_date' in data) || data.subscription_renewal_date is string || data.subscription_renewal_date == null) &&
+             (!('tokens_used' in data) || data.tokens_used is number) &&
+             (!('tokens_used_total' in data) || data.tokens_used_total is number) &&
+             (!('extra_tokens' in data) || data.extra_tokens is number) &&
+             (!('tokens_used_today' in data) || data.tokens_used_today is number) &&
+             (!('tokens_used_yesterday' in data) || data.tokens_used_yesterday is number) &&
+             (!('last_token_reset_date' in data) || data.last_token_reset_date is string) &&
+             (!('last_token_reconciliation_date' in data) || data.last_token_reconciliation_date is string) &&
+             (!('subject' in data) || data.subject is string) &&
+             (!('grade_level' in data) || data.grade_level is string || data.grade_level is list) &&
+             (!('curriculum' in data) || data.curriculum is string) &&
+             (!('centers' in data) || data.centers is list) &&
+             (!('custom_tokens_millions' in data) || data.custom_tokens_millions is number || data.custom_tokens_millions == null) &&
+             (!('custom_plan_name' in data) || data.custom_plan_name is string || data.custom_plan_name == null) &&
+             (!('custom_monthly_price' in data) || data.custom_monthly_price is number || data.custom_monthly_price == null) &&
+             (!('custom_yearly_price' in data) || data.custom_yearly_price is number || data.custom_yearly_price == null) &&
+             (!('custom_essay_limit' in data) || data.custom_essay_limit is number || data.custom_essay_limit == null) &&
+             (!('custom_ai_engine' in data) || data.custom_ai_engine is string || data.custom_ai_engine == null) &&
+             (!('custom_notes' in data) || data.custom_notes is string || data.custom_notes == null) &&
+             (!('hasPendingSubscription' in data) || data.hasPendingSubscription is bool);
+    }
+
+    // Prevents standard users from modifying their own entitlements, roles, usage counters, or status
+    function isSafeUserSelfUpdate(userId) {
+      return isOwner(userId) &&
+             isValidUser(request.resource.data) &&
+             // Protected fields cannot be changed or escalated by the standard user:
+             (!('role' in request.resource.data) || !('role' in resource.data) || request.resource.data.role == resource.data.role) &&
+             (!('is_suspended' in request.resource.data) || !('is_suspended' in resource.data) || request.resource.data.is_suspended == resource.data.is_suspended) &&
+             (!('subscription_type' in request.resource.data) || !('subscription_type' in resource.data) || request.resource.data.subscription_type == resource.data.subscription_type) &&
+             (!('subscription_end_date' in request.resource.data) || !('subscription_end_date' in resource.data) || request.resource.data.subscription_end_date == resource.data.subscription_end_date) &&
+             (!('subscription_status' in request.resource.data) || !('subscription_status' in resource.data) || request.resource.data.subscription_status == resource.data.subscription_status) &&
+             (!('hasAccess' in request.resource.data) || !('hasAccess' in resource.data) || request.resource.data.hasAccess == resource.data.hasAccess) &&
+             (!('billing_cycle' in request.resource.data) || !('billing_cycle' in resource.data) || request.resource.data.billing_cycle == resource.data.billing_cycle) &&
+             (!('tokens_used' in request.resource.data) || request.resource.data.tokens_used is number) &&
+             (!('tokens_used_total' in request.resource.data) || request.resource.data.tokens_used_total is number) &&
+             (!('tokens_used_today' in request.resource.data) || request.resource.data.tokens_used_today is number) &&
+             (!('tokens_used_yesterday' in request.resource.data) || request.resource.data.tokens_used_yesterday is number) &&
+             (!('last_token_reset_date' in request.resource.data) || request.resource.data.last_token_reset_date is string) &&
+             (!('last_token_reconciliation_date' in request.resource.data) || request.resource.data.last_token_reconciliation_date is string) &&
+             (!('extra_tokens' in request.resource.data) || !('extra_tokens' in resource.data) || request.resource.data.extra_tokens <= resource.data.extra_tokens) &&
+             (!('hasPendingSubscription' in request.resource.data) || !('hasPendingSubscription' in resource.data) || request.resource.data.hasPendingSubscription == resource.data.hasPendingSubscription);
+    }
+
+    function isSafeUserInitialCreate() {
+      return (request.resource.data.role == 'user' || isAdmin()) &&
+             (isAdmin() || !('hasAccess' in request.resource.data) || request.resource.data.hasAccess is bool) &&
+             (isAdmin() || !('is_suspended' in request.resource.data) || request.resource.data.is_suspended == false) &&
+             (isAdmin() || !('tokens_used' in request.resource.data) || request.resource.data.tokens_used == 0) &&
+             (isAdmin() || !('tokens_used_total' in request.resource.data) || request.resource.data.tokens_used_total == 0) &&
+             (isAdmin() || !('tokens_used_today' in request.resource.data) || request.resource.data.tokens_used_today == 0) &&
+             (isAdmin() || !('subscription_status' in request.resource.data) || request.resource.data.subscription_status in ['trial', 'inactive', 'pending', 'active']);
+    }
+
+    function isValidFolder(data) {
+      return hasOnlyAllowedFields(['id', 'user_id', 'name', 'created_at']) &&
+             data.id is string && data.id.size() > 0 &&
+             data.user_id is string && data.user_id.size() > 0 && data.user_id.size() < 50 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.created_at is string;
+    }
+
+    function isValidQuiz(data) {
+      return hasOnlyAllowedFields(['id', 'user_id', 'folder_id', 'title', 'data', 'grade_level', 'subject', 'created_at', 'time_limit', 'updated_at', 'expires_at', 'ai_model', 'ai_tokens_used', 'is_published', 'password', 'max_attempts', 'teacher_name', 'teacher_email', 'require_student_code', 'student_codes']) &&
+             data.id is string && data.id.size() > 0 &&
+             data.user_id is string && data.user_id.size() > 0 && data.user_id.size() < 100 &&
+             (!('folder_id' in data) || data.folder_id == null || (data.folder_id is string && data.folder_id.size() < 100)) &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 300 &&
+             data.data is string && data.data.size() > 0 && data.data.size() < 3000000 &&
+             (!('grade_level' in data) || data.grade_level == null || (data.grade_level is string && data.grade_level.size() < 100)) &&
+             (!('subject' in data) || data.subject == null || (data.subject is string && data.subject.size() < 100)) &&
+             (!('teacher_name' in data) || data.teacher_name == null || (data.teacher_name is string && data.teacher_name.size() < 100)) &&
+             (!('teacher_email' in data) || data.teacher_email == null || (data.teacher_email is string && data.teacher_email.size() < 100)) &&
+             (!('ai_model' in data) || data.ai_model == null || (data.ai_model is string && data.ai_model.size() < 100)) &&
+             (!('ai_tokens_used' in data) || data.ai_tokens_used == null || data.ai_tokens_used is number) &&
+             (!('is_published' in data) || data.is_published is bool) &&
+             (!('password' in data) || data.password == null || data.password is string) &&
+             (!('max_attempts' in data) || data.max_attempts == null || data.max_attempts is number) &&
+             (!('require_student_code' in data) || data.require_student_code is bool) &&
+             (!('student_codes' in data) || data.student_codes is list) &&
+             (!('time_limit' in data) || data.time_limit == null || (data.time_limit is number && data.time_limit >= 0)) &&
+             (!('expires_at' in data) || data.expires_at == null || data.expires_at is string || data.expires_at is number) &&
+             (!('updated_at' in data) || data.updated_at is string) &&
+             (!('created_at' in data) || data.created_at is string);
+    }
+
+    function isValidResult(data) {
+      return hasOnlyAllowedFields(['id', 'quiz_id', 'quiz_title', 'student_name', 'student_code', 'center_name', 'parent_phone', 'student_phone', 'student_email', 'phone', 'score', 'total', 'feedback', 'student_answers', 'is_graded', 'created_at', 'user_id', 'teacher_id', 'teacher_name', 'subject', 'grade_level', 'student_grade', 'reviewed_and_sent', 'reviewed_and_sent_at', 'updated_at', 'folder_id', 'notes', 'submission_time', 'submitted_at', 'duration', 'time_taken', 'time_spent_seconds', 'percentage', 'answers', 'ai_tokens_used']) &&
+             (!('id' in data) || (data.id is string && data.id.size() > 0)) &&
+             data.quiz_id is string && data.quiz_id.size() > 0 && data.quiz_id.size() < 50 &&
+             (!('quiz_title' in data) || data.quiz_title == null || (data.quiz_title is string && data.quiz_title.size() < 200)) &&
+             data.student_name is string && data.student_name.size() > 0 && data.student_name.size() < 100 &&
+             (!('student_code' in data) || data.student_code == null || (data.student_code is string && data.student_code.size() < 100)) &&
+             (!('center_name' in data) || data.center_name == null || (data.center_name is string && data.center_name.size() < 100)) &&
+             (!('parent_phone' in data) || data.parent_phone == null || (data.parent_phone is string && data.parent_phone.size() < 50)) &&
+             (!('student_phone' in data) || data.student_phone == null || (data.student_phone is string && data.student_phone.size() < 50)) &&
+             (!('student_email' in data) || data.student_email == null || (data.student_email is string && data.student_email.size() < 100)) &&
+             (!('phone' in data) || data.phone == null || (data.phone is string && data.phone.size() < 50)) &&
+             (!('teacher_name' in data) || data.teacher_name == null || (data.teacher_name is string && data.teacher_name.size() < 100)) &&
+             (!('subject' in data) || data.subject == null || (data.subject is string && data.subject.size() < 100)) &&
+             (!('grade_level' in data) || data.grade_level == null || data.grade_level is string || data.grade_level is list) &&
+             data.score is number && data.score >= 0 && data.score <= data.total &&
+             data.total is number && data.total > 0 &&
+             (!('is_graded' in data) || data.is_graded is bool) &&
+             (!('reviewed_and_sent' in data) || data.reviewed_and_sent is bool) &&
+             (!('reviewed_and_sent_at' in data) || data.reviewed_and_sent_at == null || data.reviewed_and_sent_at is string) &&
+             (!('updated_at' in data) || data.updated_at == null || data.updated_at is string) &&
+             (!('folder_id' in data) || data.folder_id == null || data.folder_id is string) &&
+             (!('notes' in data) || data.notes == null || data.notes is string) &&
+             (!('submission_time' in data) || data.submission_time == null || data.submission_time is string) &&
+             (!('submitted_at' in data) || data.submitted_at == null || data.submitted_at is string) &&
+             (!('duration' in data) || data.duration == null || data.duration is number || data.duration is string) &&
+             (!('time_taken' in data) || data.time_taken == null || data.time_taken is number || data.time_taken is string) &&
+             (!('time_spent_seconds' in data) || data.time_spent_seconds == null || data.time_spent_seconds is number) &&
+             (!('ai_tokens_used' in data) || data.ai_tokens_used == null || data.ai_tokens_used is number) &&
+             (!('feedback' in data) || data.feedback is string) &&
+             (!('student_answers' in data) || data.student_answers is string) &&
+             (!('user_id' in data) || data.user_id == null || data.user_id is string) &&
+             (!('teacher_id' in data) || data.teacher_id == null || data.teacher_id is string) &&
+             (!('created_at' in data) || data.created_at is string || data.created_at == null);
+    }
+
+    function isValidSubscriptionRequest(data) {
+      return hasOnlyAllowedFields(['id', 'user_id', 'plan', 'billing_cycle', 'screenshot_data', 'status', 'created_at', 'custom_details', 'tokens_millions', 'user_name', 'user_email', 'user_phone', 'user_subject']) &&
+             data.id is string && data.id.size() > 0 &&
+             data.user_id is string && data.user_id.size() > 0 && data.user_id.size() < 50 &&
+             data.plan is string && data.plan.size() > 0 && data.plan.size() < 100 &&
+             (!('billing_cycle' in data) || data.billing_cycle in ['monthly', 'yearly']) &&
+             data.screenshot_data is string && data.screenshot_data.size() > 0 && data.screenshot_data.size() < 3000000 &&
+             data.status in ['pending', 'approved', 'rejected'] &&
+             (!('custom_details' in data) || data.custom_details == null || data.custom_details is string) &&
+             (!('tokens_millions' in data) || data.tokens_millions == null || data.tokens_millions is number) &&
+             (!('user_name' in data) || data.user_name == null || (data.user_name is string && data.user_name.size() < 200)) &&
+             (!('user_email' in data) || data.user_email == null || (data.user_email is string && data.user_email.size() < 200)) &&
+             (!('user_phone' in data) || data.user_phone == null || (data.user_phone is string && data.user_phone.size() < 50)) &&
+             (!('user_subject' in data) || data.user_subject == null || (data.user_subject is string && data.user_subject.size() < 100)) &&
+             data.created_at is string;
+    }
+
+    function isValidPublicProfile(data) {
+      return hasOnlyAllowedFields(['id', 'name', 'subject', 'grade_level', 'curriculum', 'avatar_data', 'created_at', 'updated_at']) &&
+             (!('id' in data) || (data.id is string && data.id.size() > 0)) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             (!('subject' in data) || data.subject is string) &&
+             (!('grade_level' in data) || data.grade_level is string || data.grade_level is list) &&
+             (!('curriculum' in data) || data.curriculum is string) &&
+             (!('avatar_data' in data) || (data.avatar_data is string && data.avatar_data.size() < 1000000)) &&
+             (!('created_at' in data) || data.created_at is string) &&
+             (!('updated_at' in data) || data.updated_at is string);
+    }
+
+    function isValidNotification(data) {
+      return hasOnlyAllowedFields(['id', 'title', 'message', 'targetType', 'targetValue', 'sender_email', 'created_at']) &&
+             (!('id' in data) || (data.id is string && data.id.size() > 0 && data.id.size() < 100)) &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 300 &&
+             data.message is string && data.message.size() > 0 && data.message.size() < 3000 &&
+             (!('targetType' in data) || data.targetType in ['all', 'grade', 'subject', 'teacher']) &&
+             (!('targetValue' in data) || (data.targetValue is string && data.targetValue.size() < 200)) &&
+             (!('sender_email' in data) || (data.sender_email is string && data.sender_email.size() < 100)) &&
+             data.created_at is string;
+    }
+
+    function isValidStudent(data) {
+      return hasOnlyAllowedFields(['id', 'name', 'phone', 'parent_phone', 'center_name', 'grade_level', 'subject', 'teacher_name', 'teacher_id', 'exams_taken', 'last_score', 'total_score', 'last_date', 'code']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             (!('phone' in data) || data.phone is string) &&
+             (!('parent_phone' in data) || data.parent_phone is string) &&
+             (!('center_name' in data) || data.center_name is string) &&
+             (!('grade_level' in data) || data.grade_level is string) &&
+             (!('subject' in data) || data.subject is string) &&
+             (!('teacher_name' in data) || data.teacher_name is string) &&
+             (!('teacher_id' in data) || data.teacher_id == null || data.teacher_id is string) &&
+             (!('exams_taken' in data) || data.exams_taken is number) &&
+             (!('last_score' in data) || data.last_score is number || data.last_score == null) &&
+             (!('total_score' in data) || data.total_score is number || data.total_score == null) &&
+             (!('last_date' in data) || data.last_date is string) &&
+             (!('code' in data) || data.code is string);
+    }
+
+    function isValidTokenLog(data) {
+      return hasOnlyAllowedFields(['id', 'timestamp', 'user_id', 'user_name', 'user_email', 'operation', 'operation_label', 'model', 'prompt_tokens', 'candidates_tokens', 'cached_tokens', 'total_tokens', 'cost_usd', 'cost_egp', 'cost_sar', 'quiz_id', 'quiz_title', 'student_name', 'input_tokens', 'output_tokens', 'details', 'metadata']) &&
+             data.id is string && data.id.size() > 0 &&
+             data.timestamp is string &&
+             data.user_id is string &&
+             data.operation is string &&
+             data.prompt_tokens is number &&
+             data.candidates_tokens is number &&
+             data.total_tokens is number;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      // Strictly private: only account owner or authenticated admin can read user documents
+      allow read: if isOwner(userId) || isAdmin();
+      // On creation, non-admins must have role 'user' and safe defaults; admins can provision or restore user documents
+      allow create: if (isAdmin() || (isAuthenticated() && isOwner(userId) && isSafeUserInitialCreate())) && isValidUser(request.resource.data);
+      // Non-admins can only update non-privileged fields (name, phone, subject, avatar, etc.)
+      allow update: if isAdmin() || isSafeUserSelfUpdate(userId);
+      allow delete: if isAdmin() || (isAuthenticated() && isOwner(userId));
+    }
+
+    match /public_profiles/{userId} {
+      // Publicly accessible for displaying teacher identity on shared quiz screens
+      allow read: if true;
+      // Only the teacher themselves or an admin can create or update their public profile
+      allow create, update: if isAuthenticated() && (isOwner(userId) || isAdmin()) && isValidPublicProfile(request.resource.data);
+      allow delete: if isAuthenticated() && (isOwner(userId) || isAdmin());
+    }
+
+    match /folders/{folderId} {
+      allow read: if isAuthenticated() && (resource.data.user_id == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && isValidFolder(request.resource.data) && request.resource.data.user_id == request.auth.uid;
+      allow update: if isAuthenticated() && isValidFolder(request.resource.data) && resource.data.user_id == request.auth.uid && request.resource.data.user_id == request.auth.uid;
+      allow delete: if isAuthenticated() && (resource.data.user_id == request.auth.uid || isAdmin());
+    }
+
+    match /quizzes/{quizId} {
+      // Allow students with shared link to get the specific quiz document
+      allow get: if true;
+      // Restrict collection listing to author and admin only
+      allow list: if isAuthenticated() && (resource.data.user_id == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && isValidQuiz(request.resource.data) && request.resource.data.user_id == request.auth.uid;
+      allow update: if isAuthenticated() && isValidQuiz(request.resource.data) && (resource.data.user_id == request.auth.uid || isAdmin());
+      allow delete: if isAuthenticated() && (resource.data.user_id == request.auth.uid || isAdmin());
+    }
+
+    match /results/{resultId} {
+      // Authenticated teachers/admins can read and list results
+      allow get, list: if isAuthenticated();
+      // Allow saving results when student submits (valid schema) or authenticated teacher
+      allow create: if isValidResult(request.resource.data);
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        resource.data.get('teacher_id', '') == request.auth.uid ||
+        resource.data.get('user_id', '') == request.auth.uid ||
+        resource.data.get('teacher_id', '') == '' ||
+        resource.data.get('user_id', '') == '' ||
+        !('teacher_id' in resource.data) ||
+        resource.data.teacher_id == null ||
+        !('user_id' in resource.data) ||
+        resource.data.user_id == null ||
+        (
+          resource.data.get('quiz_id', '') != '' &&
+          exists(/databases/$(database)/documents/quizzes/$(resource.data.quiz_id)) &&
+          get(/databases/$(database)/documents/quizzes/$(resource.data.quiz_id)).data.get('user_id', '') == request.auth.uid
+        )
+      );
+      allow delete: if isAuthenticated() && (
+        isAdmin() ||
+        resource.data.get('teacher_id', '') == request.auth.uid ||
+        resource.data.get('user_id', '') == request.auth.uid ||
+        resource.data.get('teacher_id', '') == '' ||
+        resource.data.get('user_id', '') == '' ||
+        !('teacher_id' in resource.data) ||
+        resource.data.teacher_id == null ||
+        (
+          resource.data.get('quiz_id', '') != '' &&
+          exists(/databases/$(database)/documents/quizzes/$(resource.data.quiz_id)) &&
+          get(/databases/$(database)/documents/quizzes/$(resource.data.quiz_id)).data.get('user_id', '') == request.auth.uid
+        )
+      );
+    }
+
+    match /subscription_requests/{requestId} {
+      allow read: if isAuthenticated() && (resource.data.user_id == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && isValidSubscriptionRequest(request.resource.data) && request.resource.data.user_id == request.auth.uid && request.resource.data.status == 'pending';
+      // Only admins can approve or update subscription requests
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /notifications/{notificationId} {
+      // Allow students (including unauthenticated visitors on shared quiz links) to read active platform announcements
+      allow read: if true;
+      // Allow authenticated administrators or teachers to broadcast notifications
+      allow create: if isAuthenticated() && isValidNotification(request.resource.data);
+      // Allow author or admin to update or delete notifications
+      allow update: if isAuthenticated() && isValidNotification(request.resource.data) && (isAdmin() || resource.data.sender_email == request.auth.token.email);
+      allow delete: if isAuthenticated() && (isAdmin() || resource.data.sender_email == request.auth.token.email || resource.data.sender_email == 'gergesnabil101@gmail.com');
+    }
+
+    match /students/{studentId} {
+      allow get: if isAuthenticated();
+      allow list: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidStudent(request.resource.data);
+      allow delete: if isAuthenticated() && (isAdmin() || resource.data.teacher_id == request.auth.uid || true);
+    }
+
+    match /token_usage_logs/{logId} {
+      allow get: if isAuthenticated() && (resource.data.user_id == request.auth.uid || isAdmin());
+      allow list: if isAuthenticated() && (isAdmin() || resource.data.user_id == request.auth.uid);
+      allow create: if isValidTokenLog(request.resource.data) && (isAdmin() || (isAuthenticated() && request.resource.data.user_id == request.auth.uid) || request.resource.data.operation in ['essay_grading', 'grade_essay']);
+      allow update, delete: if isAdmin();
+    }
+
+    match /deleted_users/{userId} {
+      allow read, write: if isAuthenticated() && (isAdmin() || (request.auth.token.email != null && (request.auth.token.email == 'gergesnabil101@gmail.com' || request.auth.token.email == 'Gergesnabil101@gmail.com')));
+    }
+  }
+}
+
+

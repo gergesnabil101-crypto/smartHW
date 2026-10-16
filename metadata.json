@@ -1,0 +1,8 @@
+{
+  "name": "مصحح الواجبات الذكي",
+  "description": "تطبيق لمساعدة المعلمين في إنشاء وتصحيح أسئلة الاختبارات والواجبات وعرض حلول الطلاب بالتفصيل.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
