@@ -8,6 +8,7 @@ import Stripe from 'stripe';
 import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 import nodemailer from 'nodemailer';
 import { initializeApp, getApps } from 'firebase-admin/app';
+import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getAppCheck } from 'firebase-admin/app-check';
@@ -1057,6 +1058,33 @@ const verifyAppCheckOptional = async (req: any, res: any, next: any) => {
 };
 
 
+// --- Firebase ID token verification ---
+// Falls back to verifying the signature locally against Google's public keys when the Admin
+// verification API is unreachable. Unsigned or forged tokens are always rejected.
+const FIREBASE_AUTH_PROJECT_ID = firebaseConfig.projectId || process.env.FIREBASE_PROJECT_ID || 'gen-lang-client-0552360485';
+const firebaseIdTokenJwks = createRemoteJWKSet(
+  new URL('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com')
+);
+
+const verifyFirebaseIdToken = async (token: string): Promise<any> => {
+  try {
+    return await adminAuth.verifyIdToken(token);
+  } catch (adminErr: any) {
+    try {
+      const { payload } = await jwtVerify(token, firebaseIdTokenJwks, {
+        issuer: `https://securetoken.google.com/${FIREBASE_AUTH_PROJECT_ID}`,
+        audience: FIREBASE_AUTH_PROJECT_ID,
+        algorithms: ['RS256']
+      });
+      if (!payload.sub) throw new Error('Token has no subject');
+      return { ...payload, uid: payload.sub };
+    } catch (localErr: any) {
+      console.warn('Local ID token verification failed:', localErr?.message);
+      throw adminErr;
+    }
+  }
+};
+
 // --- Firebase Authentication Middleware (Verified via Firebase Admin SDK) ---
 const authenticateFirebaseUser = async (req: any, res: any, next: any) => {
   const authHeader = req.headers['authorization'];
@@ -1067,7 +1095,7 @@ const authenticateFirebaseUser = async (req: any, res: any, next: any) => {
   }
 
   try {
-    const decodedToken = await adminAuth.verifyIdToken(token);
+    const decodedToken = await verifyFirebaseIdToken(token);
     const email = (decodedToken.email || '').toLowerCase().trim();
     const isAdminEmail = email === 'gergesnabil101@gmail.com';
 
@@ -1086,29 +1114,6 @@ const authenticateFirebaseUser = async (req: any, res: any, next: any) => {
 
     next();
   } catch (err: any) {
-    // Fallback: decode JWT payload locally if remote verification fails due to API disabled or network
-    try {
-      const parts = token.split('.');
-      if (parts.length === 3) {
-        const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
-        const uid = payload.sub || payload.user_id;
-        const email = (payload.email || '').toLowerCase().trim();
-        if (uid) {
-          const isAdminEmail = email === 'gergesnabil101@gmail.com';
-          req.user = {
-            id: uid,
-            uid: uid,
-            email: email,
-            role: isAdminEmail ? 'admin' : 'user',
-            admin: isAdminEmail
-          };
-          return next();
-        }
-      }
-    } catch (jwtErr) {
-      console.warn('JWT local decode fallback failed:', jwtErr);
-    }
-
     console.warn('Firebase ID Token verification error:', err.message);
     return res.status(403).json({ error: 'جلسة العمل انتهت أو غير صالحة. يرجى تسجيل الدخول مرة أخرى.' });
   }
@@ -1303,11 +1308,10 @@ async function startServer() {
     let event: Stripe.Event;
 
     try {
-      if (webhookSecret && sig) {
-        event = stripe.webhooks.constructEvent(req.body, sig as string, webhookSecret);
-      } else {
-        event = JSON.parse(req.body.toString());
+      if (!webhookSecret || !sig) {
+        return res.status(400).send('Missing Stripe signature or webhook secret');
       }
+      event = stripe.webhooks.constructEvent(req.body, sig as string, webhookSecret);
 
       if (event.type === 'checkout.session.completed') {
         const session = event.data.object as Stripe.Checkout.Session;
@@ -3624,7 +3628,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
   });
 
   // --- Admin API: Deep Audit User Token Usage ---
-  app.get('/api/admin/audit-user', async (req: any, res: any) => {
+  app.get('/api/admin/audit-user', authenticateFirebaseUser, requireAdmin, async (req: any, res: any) => {
     try {
       const email = String(req.query.email || '').toLowerCase().trim();
       if (!email) return res.status(400).json({ error: 'email query param is required' });
@@ -4552,8 +4556,25 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
   });
 
   // --- Admin Registration Notification & Automatic Server Sync ---
-  app.post('/api/admin/notify-registration', async (req, res) => {
-    const { uid, name, email, phone, subject, grade_level } = req.body;
+  app.post('/api/admin/notify-registration', async (req: any, res: any) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+    let caller: any = null;
+    if (token && token !== 'null' && token !== 'undefined') {
+      try {
+        caller = await verifyFirebaseIdToken(token);
+      } catch (_) {}
+    }
+    if (!caller) {
+      return res.status(401).json({ error: 'يرجى تسجيل الدخول للوصول إلى هذه الخدمة.' });
+    }
+    const callerEmail = (caller.email || '').toLowerCase().trim();
+    const callerIsAdmin = callerEmail === 'gergesnabil101@gmail.com' || caller.admin === true || caller.role === 'admin';
+    const { uid, name, phone, subject, grade_level } = req.body;
+    if (!uid || (uid !== caller.uid && !callerIsAdmin)) {
+      return res.status(403).json({ error: 'غير مصرح بهذه العملية.' });
+    }
+    const email = callerIsAdmin ? req.body.email : (caller.email || req.body.email);
     
     if (uid && email) {
       const cleanEmail = email.trim().toLowerCase();

@@ -3170,9 +3170,13 @@ export default function App() {
 
         // Notify Admin via Backend and register in persistent server storage
         try {
+          const notifyIdToken = await userCredential.user.getIdToken().catch(() => null);
           await fetch('/api/admin/notify-registration', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              ...(notifyIdToken ? { 'Authorization': `Bearer ${notifyIdToken}` } : {})
+            },
             body: JSON.stringify({
               uid: userCredential.user.uid,
               name: authName,
@@ -4958,9 +4962,13 @@ export default function App() {
       };
 
       await setDoc(doc(db, 'users', newUid), newSubscriber, { merge: true });
+      const adminIdToken = auth.currentUser ? await auth.currentUser.getIdToken().catch(() => null) : null;
       fetch('/api/admin/notify-registration', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(adminIdToken ? { 'Authorization': `Bearer ${adminIdToken}` } : {})
+        },
         body: JSON.stringify({
           uid: newUid,
           name: newSubscriber.name,

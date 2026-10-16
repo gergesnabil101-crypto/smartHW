@@ -12,3 +12,7 @@ coverage/
 *.db-shm
 *.db.backup.*
 *.sqlite
+
+# Never commit env files (any casing)
+.ENV*
+*.env.tsx
