@@ -3170,9 +3170,13 @@ export default function App() {
 
         // Notify Admin via Backend and register in persistent server storage
         try {
+          const notifyIdToken = await userCredential.user.getIdToken().catch(() => null);
           await fetch('/api/admin/notify-registration', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              ...(notifyIdToken ? { 'Authorization': `Bearer ${notifyIdToken}` } : {})
+            },
             body: JSON.stringify({
               uid: userCredential.user.uid,
               name: authName,
@@ -4958,9 +4962,13 @@ export default function App() {
       };
 
       await setDoc(doc(db, 'users', newUid), newSubscriber, { merge: true });
+      const adminIdToken = auth.currentUser ? await auth.currentUser.getIdToken().catch(() => null) : null;
       fetch('/api/admin/notify-registration', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(adminIdToken ? { 'Authorization': `Bearer ${adminIdToken}` } : {})
+        },
         body: JSON.stringify({
           uid: newUid,
           name: newSubscriber.name,
@@ -16289,9 +16297,9 @@ ${totalAddedOrRepaired > 0
       )}
 
       {showShareModal && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between p-6 border-b border-slate-100">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-md max-h-[calc(100dvh-1.5rem)] overflow-y-auto overflow-x-hidden animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-slate-100">
               <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                 <Share2 size={24} className="text-indigo-600" />
                 مشاركة الاختبار
@@ -16304,7 +16312,7 @@ ${totalAddedOrRepaired > 0
               </button>
             </div>
             
-            <div className="p-6 space-y-8">
+            <div className="p-4 sm:p-6 space-y-6 sm:space-y-8">
               <div className="flex flex-col items-center justify-center space-y-4">
                 <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
                   <QRCodeCanvas
@@ -16362,7 +16370,7 @@ ${totalAddedOrRepaired > 0
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-slate-700">كود الاختبار للطلاب:</label>
                   <div className="flex gap-2">
-                    <div className="flex-1 p-3 rounded-xl border-2 border-dashed border-indigo-200 bg-indigo-50 text-indigo-700 font-bold text-center text-lg tracking-widest select-all">
+                    <div className="flex-1 p-3 rounded-xl border-2 border-dashed border-indigo-200 bg-indigo-50 text-indigo-700 font-bold text-center text-sm sm:text-lg tracking-wider break-all select-all">
                       {quiz.id}
                     </div>
                   </div>
@@ -16375,7 +16383,7 @@ ${totalAddedOrRepaired > 0
                       type="text"
                       readOnly
                       value={shareUrl}
-                      className="flex-1 p-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 text-left text-sm focus:outline-none"
+                      className="flex-1 min-w-0 p-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 text-left text-sm focus:outline-none"
                       dir="ltr"
                     />
                     <button
@@ -16392,7 +16400,7 @@ ${totalAddedOrRepaired > 0
 
                 {/* Expiration Date Control inside Share Modal */}
                 <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <CalendarDays size={18} className="text-indigo-600 shrink-0" />
                       <span className="text-sm font-bold text-slate-800">تاريخ انتهاء صلاحية الرابط:</span>
@@ -16408,7 +16416,7 @@ ${totalAddedOrRepaired > 0
                     ) : null}
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                     <input
                       type="datetime-local"
                       value={quiz.expires_at ? toDateTimeLocalString(new Date(quiz.expires_at)) : ''}
@@ -16416,7 +16424,7 @@ ${totalAddedOrRepaired > 0
                         const val = e.target.value;
                         handleUpdateShareExpiration(val ? new Date(val).toISOString() : null);
                       }}
-                      className="flex-1 p-2.5 rounded-xl border border-slate-200 focus:border-indigo-600 outline-none text-xs bg-white text-slate-800"
+                      className="w-full sm:flex-1 min-w-0 p-2.5 rounded-xl border border-slate-200 focus:border-indigo-600 outline-none text-xs bg-white text-slate-800"
                     />
                     <select
                       value={quiz.expires_at ? 'custom' : 'none'}
@@ -16435,7 +16443,7 @@ ${totalAddedOrRepaired > 0
                           handleUpdateShareExpiration(d.toISOString());
                         }
                       }}
-                      className="p-2.5 rounded-xl border border-slate-200 focus:border-indigo-600 outline-none text-xs bg-white text-slate-700 font-medium"
+                      className="w-full sm:w-auto p-2.5 rounded-xl border border-slate-200 focus:border-indigo-600 outline-none text-xs bg-white text-slate-700 font-medium"
                     >
                       <option value="none">بدون انتهاء (دائماً)</option>
                       <option value="24h">24 ساعة</option>

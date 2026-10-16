@@ -81,20 +81,14 @@ service cloud.firestore {
       return isOwner(userId) &&
              isValidUser(request.resource.data) &&
              // Protected fields cannot be changed or escalated by the standard user:
-             (!('role' in request.resource.data) || !('role' in resource.data) || request.resource.data.role == resource.data.role) &&
-             (!('is_suspended' in request.resource.data) || !('is_suspended' in resource.data) || request.resource.data.is_suspended == resource.data.is_suspended) &&
-             (!('subscription_type' in request.resource.data) || !('subscription_type' in resource.data) || request.resource.data.subscription_type == resource.data.subscription_type) &&
-             (!('subscription_end_date' in request.resource.data) || !('subscription_end_date' in resource.data) || request.resource.data.subscription_end_date == resource.data.subscription_end_date) &&
-             (!('subscription_status' in request.resource.data) || !('subscription_status' in resource.data) || request.resource.data.subscription_status == resource.data.subscription_status) &&
-             (!('hasAccess' in request.resource.data) || !('hasAccess' in resource.data) || request.resource.data.hasAccess == resource.data.hasAccess) &&
-             (!('billing_cycle' in request.resource.data) || !('billing_cycle' in resource.data) || request.resource.data.billing_cycle == resource.data.billing_cycle) &&
              (!('tokens_used' in request.resource.data) || request.resource.data.tokens_used is number) &&
              (!('tokens_used_total' in request.resource.data) || request.resource.data.tokens_used_total is number) &&
              (!('tokens_used_today' in request.resource.data) || request.resource.data.tokens_used_today is number) &&
              (!('tokens_used_yesterday' in request.resource.data) || request.resource.data.tokens_used_yesterday is number) &&
              (!('last_token_reset_date' in request.resource.data) || request.resource.data.last_token_reset_date is string) &&
              (!('last_token_reconciliation_date' in request.resource.data) || request.resource.data.last_token_reconciliation_date is string) &&
-             (!('extra_tokens' in request.resource.data) || !('extra_tokens' in resource.data) || request.resource.data.extra_tokens <= resource.data.extra_tokens) &&
+             !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'is_suspended', 'subscription_type', 'subscription_end_date', 'subscription_status', 'hasAccess', 'billing_cycle', 'isAdmin', 'custom_tokens_millions', 'custom_plan_name', 'custom_monthly_price', 'custom_yearly_price', 'custom_essay_limit', 'trial_extended_until', 'subscription_start_date', 'subscription_renewal_date', 'subscriptionStatus', 'subscriptionPlan', 'subscriptionEndDate']) &&
+             request.resource.data.get('extra_tokens', 0) <= resource.data.get('extra_tokens', 0) &&
              (!('hasPendingSubscription' in request.resource.data) || !('hasPendingSubscription' in resource.data) || request.resource.data.hasPendingSubscription == resource.data.hasPendingSubscription);
     }
 
@@ -105,7 +99,12 @@ service cloud.firestore {
              (isAdmin() || !('tokens_used' in request.resource.data) || request.resource.data.tokens_used == 0) &&
              (isAdmin() || !('tokens_used_total' in request.resource.data) || request.resource.data.tokens_used_total == 0) &&
              (isAdmin() || !('tokens_used_today' in request.resource.data) || request.resource.data.tokens_used_today == 0) &&
-             (isAdmin() || !('subscription_status' in request.resource.data) || request.resource.data.subscription_status in ['trial', 'inactive', 'pending', 'active']);
+             (isAdmin() || !('subscription_status' in request.resource.data) || request.resource.data.subscription_status in ['trial', 'inactive', 'pending']) &&
+             (isAdmin() || request.resource.data.get('subscription_end_date', null) == null) &&
+             (isAdmin() || request.resource.data.get('custom_tokens_millions', null) in [null, 0]) &&
+             (isAdmin() || request.resource.data.get('extra_tokens', 0) == 0) &&
+             (isAdmin() || request.resource.data.get('isAdmin', false) == false) &&
+             (isAdmin() || request.resource.data.get('trial_extended_until', null) == null);
     }
 
     function isValidFolder(data) {
@@ -342,8 +341,12 @@ service cloud.firestore {
     match /students/{studentId} {
       allow get: if isAuthenticated();
       allow list: if isAuthenticated();
-      allow create, update: if isAuthenticated() && isValidStudent(request.resource.data);
-      allow delete: if isAuthenticated() && (isAdmin() || resource.data.teacher_id == request.auth.uid || true);
+      allow create: if isAuthenticated() && isValidStudent(request.resource.data) &&
+        (isAdmin() || request.resource.data.get('teacher_id', null) == null || request.resource.data.teacher_id == request.auth.uid);
+      allow update: if isAuthenticated() && isValidStudent(request.resource.data) &&
+        (isAdmin() || resource.data.get('teacher_id', null) == null || resource.data.teacher_id == request.auth.uid);
+      allow delete: if isAuthenticated() &&
+        (isAdmin() || resource.data.get('teacher_id', null) == null || resource.data.teacher_id == request.auth.uid);
     }
 
     match /token_usage_logs/{logId} {
