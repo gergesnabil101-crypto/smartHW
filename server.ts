@@ -13,6 +13,7 @@ import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getAppCheck } from 'firebase-admin/app-check';
 import { recordTokenUsage, computeBillableTokens, type TokenOperation } from './server/tokenAccounting.ts';
+import { normalizeGradingResult, GRADING_RESPONSE_SCHEMA } from './server/grading.ts';
 
 // Load Firebase configuration
 let firebaseConfig: any = {};
@@ -2689,6 +2690,7 @@ Return ONLY valid JSON:
     { "description": "وصف الخطوة بالعربية مع المصطلحات العلمية وأسماء المواد بالإنجليزية (مثل: ناتج thermal decomposition هو metal oxide و carbon dioxide)", "points": number, "earned": number }
   ]
 }
+CONSISTENCY RULE (MANDATORY): the "points" of all steps MUST add up exactly to Total Points, and "score" MUST equal the sum of all "earned" values. The server recomputes the score from the steps.
 LANGUAGE RULE (CRITICAL):
 You MUST write the feedback and step descriptions in Arabic, BUT ALL scientific terms, processes, reaction types, chemical elements, compounds, formulas, and tests MUST be written in English (e.g. thermal decomposition, simple substitution, double substitution, neutralization, oxidation and reduction, metal oxide, carbon dioxide, hydrogen gas, pop sound, sodium hydroxide, balanced equation). NEVER translate these scientific terms to Arabic alone without English.`;
     }
@@ -2766,6 +2768,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
     { "description": "وصف الخطوة بالعربية الفصحى (مثل: إجابة صحيحة ومطابقة للنموذج: علم مؤنث / العلمية والتأنيث)", "points": number, "earned": number }
   ]
 }
+قاعدة الاتساق (إلزامية): مجموع "points" لكل الخطوات يجب أن يساوي الدرجة الكلية بالضبط، و"score" يجب أن يساوي مجموع قيم "earned". الخادم يعيد حساب الدرجة من الخطوات.
 `;
     }
 
@@ -2854,6 +2857,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
     { "description": "وصف الجزء أو الخطوة بالعربية مع المصطلحات بالإنجليزية (مثال: كتابة القانون الفيزيائي والتعويض بالأرقام)", "points": number, "earned": number }
   ]
 }
+قاعدة الاتساق (إلزامية): مجموع "points" لكل الخطوات يجب أن يساوي الدرجة الكلية بالضبط، و"score" يجب أن يساوي مجموع قيم "earned". الخادم يعيد حساب الدرجة من الخطوات.
 `;
     }
 
@@ -2901,6 +2905,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
     { "description": "وصف الجزء أو الفكرة المستوفاة بالمعنى بأسلوب الطالب", "points": number, "earned": number }
   ]
 }
+قاعدة الاتساق (إلزامية): مجموع "points" لكل الخطوات يجب أن يساوي الدرجة الكلية بالضبط، و"score" يجب أن يساوي مجموع قيم "earned". الخادم يعيد حساب الدرجة من الخطوات.
 `;
   }
 
@@ -3003,6 +3008,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
           const ai = getGeminiClient(customApiKey);
           const configObj: any = {
             responseMimeType: 'application/json',
+            responseSchema: GRADING_RESPONSE_SCHEMA,
             maxOutputTokens: isProModel ? 8192 : 1200
           };
           if (isProModel) {
@@ -3023,6 +3029,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
                 contents: gradingPrompt,
                 config: {
                   responseMimeType: 'application/json',
+                  responseSchema: GRADING_RESPONSE_SCHEMA,
                   maxOutputTokens: 1200
                 }
               });
@@ -3061,6 +3068,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
       });
 
       let parsedResult: any = safeParseAiJsonServer(aiResult.text || '');
+      const parseFailed = !parsedResult;
       if (!parsedResult) {
         const obsRescue = checkScientificObservationPartialCreditServer(studentText, modelAnswer, qPoints, isEnglish);
         if (obsRescue) {
@@ -3079,52 +3087,22 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
         }
       }
 
-      let awardedScore = typeof parsedResult.score === 'number' ? parsedResult.score : 0;
-      awardedScore = Math.max(0, Math.min(qPoints, awardedScore));
+      const graded = normalizeGradingResult(parsedResult, qPoints, { isEnglish: isEnglish, parseFailed });
 
-      const isGradedCorrect = parsedResult.status === 'correct' || awardedScore >= (qPoints * 0.75);
+      const awardedScore = graded.score;
 
-      // Extract and sanitize steps breakdown
-      let returnedSteps: Array<{ description: string; points: number; earned: number }> = [];
-      if (Array.isArray(parsedResult.steps) && parsedResult.steps.length > 0) {
-        returnedSteps = parsedResult.steps.map((s: any) => ({
-          description: String(s.description || (isEnglish ? 'Step' : 'خطوة')),
-          points: typeof s.points === 'number' ? s.points : 1,
-          earned: typeof s.earned === 'number' ? s.earned : 0
-        }));
-      } else {
-        // Synthesize clear step breakdown if AI provided partial credit without explicit steps array
-        if (awardedScore > 0 && awardedScore < qPoints) {
-          returnedSteps = [
-            {
-              description: isEnglish ? 'Correct Steps / Parts' : 'الخطوات والأجزاء الصحيحة',
-              points: awardedScore,
-              earned: awardedScore
-            },
-            {
-              description: isEnglish ? 'Deduction for incorrect/missing step' : 'خصم الخطوة أو الجزء الخاطئ/الناقص',
-              points: Number((qPoints - awardedScore).toFixed(2)),
-              earned: 0
-            }
-          ];
-        } else if (awardedScore >= qPoints) {
-          returnedSteps = [
-            {
-              description: isEnglish ? 'All steps completed correctly' : 'جميع الخطوات مكتملة وصحيحة',
-              points: qPoints,
-              earned: qPoints
-            }
-          ];
-        }
-      }
+      const returnedSteps = graded.steps;
+
+      const isGradedCorrect = graded.isCorrect;
 
       return res.json({
         score: awardedScore,
-        status: parsedResult.status || (awardedScore >= qPoints ? 'correct' : awardedScore > 0 ? 'partial' : 'incorrect'),
-        feedback: parsedResult.feedback || (awardedScore >= qPoints ? (isEnglish ? 'Excellent! Correct answer conveying the concept in your own style.' : 'إجابة ممتازة وصحيحة بالمعنى والمفهوم المطلوب معبراً عنها بأسلوبك الخاص.') : awardedScore > 0 ? (isEnglish ? 'Partial credit awarded for correct parts.' : 'تم احتساب درجة جزئية عن الأجزاء الصحيحة بالمعنى.') : (isEnglish ? 'The answer does not convey the required conceptual meaning.' : 'الإجابة لا تعبر عن المعنى أو المفهوم المطلوب في السؤال.')),
+        status: graded.status,
+        feedback: graded.feedback,
         correctExample: modelAnswer || (isEnglish ? 'Standard model answer' : 'الإجابة النموذجية المعتمدة'),
         steps: returnedSteps,
         isCorrect: isGradedCorrect,
+        needs_review: graded.needsReview,
         model: actualModelUsed,
         usageMetadata: {
           promptTokenCount: promptTok,
@@ -6165,6 +6143,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
                     const ai = getGeminiClient();
                     const subConfigObj: any = {
                       responseMimeType: 'application/json',
+                      responseSchema: GRADING_RESPONSE_SCHEMA,
                       maxOutputTokens: isProQuiz ? 8192 : 1200
                     };
                     if (isProQuiz) {
@@ -6185,6 +6164,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
                           contents: gradingPrompt,
                           config: {
                             responseMimeType: 'application/json',
+                            responseSchema: GRADING_RESPONSE_SCHEMA,
                             maxOutputTokens: 600
                           }
                         });
@@ -6222,6 +6202,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
                 }
 
                 let parsedResult: any = safeParseAiJsonServer(aiResult.text || '');
+                const parseFailed = !parsedResult;
                 if (!parsedResult) {
                   const obsRescue = checkScientificObservationPartialCreditServer(studentEssayAns, q.modelAnswer, qPoints, isEnglishQ);
                   if (obsRescue) {
@@ -6240,52 +6221,23 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
                   }
                 }
 
-                let awardedScore = typeof parsedResult.score === 'number' ? parsedResult.score : 0;
-                awardedScore = Math.max(0, Math.min(qPoints, awardedScore));
+                const graded = normalizeGradingResult(parsedResult, qPoints, { isEnglish: isEnglishQ, parseFailed });
 
-                totalCalculatedScore += awardedScore;
+                const awardedScore = graded.score;
 
-                // Extract and sanitize steps breakdown
-                let returnedSteps: Array<{ description: string; points: number; earned: number }> = [];
-                if (Array.isArray(parsedResult.steps) && parsedResult.steps.length > 0) {
-                  returnedSteps = parsedResult.steps.map((s: any) => ({
-                    description: String(s.description || (isEnglishQ ? 'Step' : 'خطوة')),
-                    points: typeof s.points === 'number' ? s.points : 1,
-                    earned: typeof s.earned === 'number' ? s.earned : 0
-                  }));
-                } else {
-                  if (awardedScore > 0 && awardedScore < qPoints) {
-                    returnedSteps = [
-                      {
-                        description: isEnglishQ ? 'Correct Steps / Parts' : 'الخطوات والأجزاء الصحيحة',
-                        points: awardedScore,
-                        earned: awardedScore
-                      },
-                      {
-                        description: isEnglishQ ? 'Deduction for incorrect/missing step' : 'خصم الخطوة أو الجزء الخاطئ/الناقص',
-                        points: Number((qPoints - awardedScore).toFixed(2)),
-                        earned: 0
-                      }
-                    ];
-                  } else if (awardedScore >= qPoints) {
-                    returnedSteps = [
-                      {
-                        description: isEnglishQ ? 'All steps completed correctly' : 'جميع الخطوات مكتملة وصحيحة',
-                        points: qPoints,
-                        earned: qPoints
-                      }
-                    ];
-                  }
-                }
+                const returnedSteps = graded.steps;
+
+                const isGradedCorrect = graded.isCorrect;
 
                 feedbackMap[q.id] = {
                   score: awardedScore,
-                  status: parsedResult.status || (awardedScore >= qPoints ? 'correct' : awardedScore > 0 ? 'partial' : 'incorrect'),
-                  feedback: parsedResult.feedback || (awardedScore >= qPoints ? (isEnglishQ ? 'Excellent! Correct answer conveying the concept in your own style.' : 'إجابة ممتازة وصحيحة بالمعنى والمفهوم المطلوب معبراً عنها بأسلوبك الخاص.') : awardedScore > 0 ? (isEnglishQ ? 'Partial credit awarded for correct parts.' : 'تم احتساب درجة جزئية عن الأجزاء الصحيحة بالمعنى.') : (isEnglishQ ? 'The answer does not convey the required conceptual meaning.' : 'الإجابة لا تعبر عن المعنى أو المفهوم المطلوب في السؤال.')),
+                  status: graded.status,
+                  feedback: graded.feedback,
                   correctExample: q.modelAnswer || (isEnglishQ ? 'Official model answer' : 'الإجابة النموذجية المعتمدة'),
                   studentAnswer: studentEssayAns,
                   steps: returnedSteps,
-                  isCorrect: parsedResult.status === 'correct' || awardedScore >= (qPoints * 0.75)
+                  isCorrect: isGradedCorrect,
+                  needs_review: graded.needsReview
                 };
               } catch (aiErr: any) {
                 console.error('Server AI grading error (safe fallback applied):', aiErr?.message);
@@ -6301,6 +6253,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
                   correctExample: q.modelAnswer || (isEnglishQ ? 'Official model answer' : 'الإجابة النموذجية المعتمدة'),
                   studentAnswer: studentEssayAns,
                   isCorrect: fallbackCheck.matched,
+                  needs_review: !fallbackCheck.matched,
                   steps: fallbackCheck.steps || []
                 };
               }

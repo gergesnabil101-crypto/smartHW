@@ -8796,7 +8796,8 @@ ${totalAddedOrRepaired > 0
                     correctExample: q.modelAnswer || aiData.correctExample || (isEnglishQ ? 'Official model answer' : 'الإجابة النموذجية'),
                     studentAnswer: studentAns,
                     steps: Array.isArray(aiData.steps) ? aiData.steps : [],
-                    isCorrect: earned >= (qPoints * 0.75)
+                    isCorrect: earned >= (qPoints * 0.75),
+                    needsReview: Boolean(aiData.needs_review)
                   };
                 } else {
                   const safeCheck = checkEssayExactOrEquivalent(studentAns, q.modelAnswer, qPoints, isEnglishQ, q.keywords);
@@ -8822,6 +8823,7 @@ ${totalAddedOrRepaired > 0
                   correctExample: q.modelAnswer || (isEnglishQ ? 'Official model answer' : 'الإجابة النموذجية'),
                   studentAnswer: studentAns,
                   isCorrect: safeCheck.matched,
+                  needsReview: !safeCheck.matched,
                   steps: safeCheck.steps || []
                 };
               }
