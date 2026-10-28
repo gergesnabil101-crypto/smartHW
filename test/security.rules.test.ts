@@ -114,12 +114,17 @@ async function main() {
       created_at: new Date().toISOString(), teacher_id: 'teacherA', user_id: 'teacherA', teacher_name: 'A', subject: '', grade_level: '',
       time_spent_seconds: 60, duration: 60, ai_tokens_used: 0
     })));
-  await test('teacher logs token usage', () =>
-    assertSucceeds(setDoc(doc(teacher(), 'token_usage_logs/l1'), {
+  await test('teacher cannot write token usage logs (server-only)', () =>
+    assertFails(setDoc(doc(teacher(), 'token_usage_logs/l1'), {
       id: 'l1', timestamp: new Date().toISOString(), user_id: 'teacherA', user_name: 'A', user_email: 'a@example.com',
       operation: 'essay_grading', operation_label: 'x', model: 'gemini-3.8-flash', prompt_tokens: 10, candidates_tokens: 5,
       cached_tokens: 0, total_tokens: 15, cost_usd: 0, cost_egp: 0, cost_sar: 0, quiz_id: '', quiz_title: '', student_name: ''
     })));
+
+  await test('teacher cannot change own token counters (server-only)', () =>
+    assertFails(updateDoc(doc(teacher(), 'users/teacherA'), { tokens_used: increment(500), tokens_used_today: 500 })));
+  await test('teacher cannot change own tokens_used_total', () =>
+    assertFails(updateDoc(doc(teacher(), 'users/teacherA'), { tokens_used_total: 999 })));
 
   await env.cleanup();
   console.log(`\n${passed} passed, ${failed} failed`);

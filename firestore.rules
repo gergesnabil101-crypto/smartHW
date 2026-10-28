@@ -87,7 +87,7 @@ service cloud.firestore {
              (!('tokens_used_yesterday' in request.resource.data) || request.resource.data.tokens_used_yesterday is number) &&
              (!('last_token_reset_date' in request.resource.data) || request.resource.data.last_token_reset_date is string) &&
              (!('last_token_reconciliation_date' in request.resource.data) || request.resource.data.last_token_reconciliation_date is string) &&
-             !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'is_suspended', 'subscription_type', 'subscription_end_date', 'subscription_status', 'hasAccess', 'billing_cycle', 'isAdmin', 'custom_tokens_millions', 'custom_plan_name', 'custom_monthly_price', 'custom_yearly_price', 'custom_essay_limit', 'trial_extended_until', 'subscription_start_date', 'subscription_renewal_date', 'subscriptionStatus', 'subscriptionPlan', 'subscriptionEndDate']) &&
+             !request.resource.data.diff(resource.data).affectedKeys().hasAny(['tokens_used', 'tokens_used_total', 'tokens_used_today', 'tokens_used_yesterday', 'last_token_reset_date', 'last_token_reconciliation_date', 'last_token_activity_at', 'role', 'is_suspended', 'subscription_type', 'subscription_end_date', 'subscription_status', 'hasAccess', 'billing_cycle', 'isAdmin', 'custom_tokens_millions', 'custom_plan_name', 'custom_monthly_price', 'custom_yearly_price', 'custom_essay_limit', 'trial_extended_until', 'subscription_start_date', 'subscription_renewal_date', 'subscriptionStatus', 'subscriptionPlan', 'subscriptionEndDate']) &&
              request.resource.data.get('extra_tokens', 0) <= resource.data.get('extra_tokens', 0) &&
              (!('hasPendingSubscription' in request.resource.data) || !('hasPendingSubscription' in resource.data) || request.resource.data.hasPendingSubscription == resource.data.hasPendingSubscription);
     }
@@ -352,7 +352,8 @@ service cloud.firestore {
     match /token_usage_logs/{logId} {
       allow get: if isAuthenticated() && (resource.data.user_id == request.auth.uid || isAdmin());
       allow list: if isAuthenticated() && (isAdmin() || resource.data.user_id == request.auth.uid);
-      allow create: if isValidTokenLog(request.resource.data) && (isAdmin() || (isAuthenticated() && request.resource.data.user_id == request.auth.uid) || request.resource.data.operation in ['essay_grading', 'grade_essay']);
+      // Token usage is recorded exclusively by the server (Admin SDK); clients only read.
+      allow create: if isAdmin() && isValidTokenLog(request.resource.data);
       allow update, delete: if isAdmin();
     }
 

@@ -12,6 +12,7 @@
     "lint": "tsc --noEmit",
     "test": "tsx test/runAllTests.ts",
     "test:rules": "tsx test/security.rules.test.ts",
+    "test:tokens": "tsx test/tokenAccounting.test.ts",
     "test:api": "tsx test/api.auth.validation.test.ts",
     "test:gemini": "tsx test/gemini.ratelimit.test.ts",
     "test:flows": "tsx test/app.flows.test.ts"

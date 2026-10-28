@@ -12,6 +12,7 @@ import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getAppCheck } from 'firebase-admin/app-check';
+import { recordTokenUsage, computeBillableTokens, type TokenOperation } from './server/tokenAccounting.ts';
 
 // Load Firebase configuration
 let firebaseConfig: any = {};
@@ -752,65 +753,14 @@ async function verifyTeacherActiveSubscriptionAndQuota(
   }
 }
 
+// Token deduction now happens atomically inside recordTokenUsage (server/tokenAccounting.ts),
+// exactly once per usage log. Kept as a thin wrapper for any legacy caller.
 async function trackServerTokenUsage(uid: string, tokens: number) {
   if (!uid || tokens <= 0) return;
   try {
-    const userRef = adminDb.collection('users').doc(uid);
-    const userDoc = await userRef.get();
-    if (!userDoc.exists) return;
-    const userData = userDoc.data() || {};
-    const todayStr = new Date().toISOString().split('T')[0];
-    
-    let tokensToday = userData.tokens_used_today || 0;
-    const lastReset = userData.last_token_reset_date || '';
-    let extraTokens = userData.extra_tokens || 0;
-    
-    if (lastReset !== todayStr) {
-      tokensToday = 0;
-    }
-
-    const subType = (userData.subscription_type || '').toLowerCase();
-    const isTrialUser = (userData.subscription_status || 'trial') === 'trial' && userData.role !== 'admin';
-    const isTokenPlan = !isTrialUser && Boolean(
-      userData.custom_tokens_millions ||
-      subType.startsWith('token_') ||
-      subType.startsWith('custom_') ||
-      subType.includes('m') ||
-      userData.role === 'admin'
-    );
-
-    // If teacher is on Token Charging system: directly increment tokens_used with no daily resets blocking them
-    if (isTokenPlan) {
-      await userRef.set({
-        tokens_used: FieldValue.increment(tokens),
-        tokens_used_today: tokensToday + tokens,
-        last_token_reset_date: todayStr
-      }, { merge: true });
-      return;
-    }
-
-    let dailyLimit = 50000; // الفترة المجانية: 50 ألف توكنز يومياً
-    if (isTrialUser) {
-      dailyLimit = 50000;
-    } else if (subType === '100' || subType === 'theory_200') dailyLimit = 25000;
-    else if (subType === '200' || subType === 'science_250') dailyLimit = 50000;
-    else if (subType === '500' || subType === 'unlimited' || subType === 'monthly' || subType === 'yearly' || subType === 'theory_yearly' || subType === 'science_yearly') dailyLimit = 150000;
-
-    if (tokensToday >= dailyLimit && extraTokens > 0) {
-      await userRef.set({
-        tokens_used: FieldValue.increment(tokens),
-        extra_tokens: Math.max(0, extraTokens - tokens),
-        last_token_reset_date: todayStr
-      }, { merge: true });
-    } else {
-      await userRef.set({
-        tokens_used: FieldValue.increment(tokens),
-        tokens_used_today: tokensToday + tokens,
-        last_token_reset_date: todayStr
-      }, { merge: true });
-    }
+    await recordTokenUsage(adminDb, { userId: uid, operation: 'general', promptTokens: tokens, candidatesTokens: 0 });
   } catch (e: any) {
-    // Silently ignore tracking errors in AI Studio sandbox due to IAM restrictions on adminDb writes
+    console.warn('[tokens] trackServerTokenUsage failed:', e?.message || e);
   }
 }
 
@@ -1255,7 +1205,7 @@ function logTokenUsageEvent(params: {
   };
 
   const record: ServerTokenLogRecord = {
-    id: `tok_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    id: `tok_pending_${now}`,
     timestamp: new Date().toISOString(),
     user_id: params.userId || 'anonymous',
     user_name: params.userName || '',
@@ -1275,19 +1225,32 @@ function logTokenUsageEvent(params: {
     student_name: params.studentName || ''
   };
 
-  inMemoryTokenLogs.unshift(record);
-  if (inMemoryTokenLogs.length > MAX_IN_MEMORY_LOGS) {
-    inMemoryTokenLogs.pop();
-  }
-
-  // Write to Firestore securely via Admin SDK to ensure persistence across container restarts
-  if (totalTokens > 0) {
-    adminDb.collection('token_usage_logs').doc(record.id).set(record).catch(() => {});
-  }
-
-  if (params.userId && totalTokens > 0) {
-    trackServerTokenUsage(params.userId, totalTokens).catch(() => {});
-  }
+  // Single source of truth: one transaction writes the log (deterministic id) and increments
+  // the teacher's counters exactly once. Duplicates (retries, double callers) are ignored.
+  recordTokenUsage(adminDb, {
+    userId: params.userId,
+    userName: params.userName,
+    userEmail: params.userEmail,
+    operation: params.operation as TokenOperation,
+    operationLabel: record.operation_label,
+    model,
+    promptTokens,
+    candidatesTokens,
+    cachedTokens,
+    quizId: params.quizId,
+    quizTitle: params.quizTitle,
+    studentName: params.studentName,
+    usdToEgpRate: params.usdToEgpRate
+  }).then((result) => {
+    if (result.status === 'recorded' && result.record) {
+      inMemoryTokenLogs.unshift({ ...record, id: result.record.id, timestamp: result.record.timestamp });
+      if (inMemoryTokenLogs.length > MAX_IN_MEMORY_LOGS) {
+        inMemoryTokenLogs.pop();
+      }
+    }
+  }).catch((e: any) => {
+    console.warn('[tokens] recordTokenUsage failed:', e?.message || e);
+  });
 }
 
 
@@ -3073,8 +3036,8 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
       const aiResult = await geminiConcurrencyQueue.execute(aiTask);
       const actualModelUsed = (aiResult as any).modelUsed || modelToUse;
       
-      const promptTok = aiResult.usageMetadata?.promptTokenCount || 350;
-      const candTok = aiResult.usageMetadata?.candidatesTokenCount || 80;
+      const promptTok = aiResult.usageMetadata?.promptTokenCount || 0;
+      const candTok = aiResult.usageMetadata?.candidatesTokenCount || 0;
       const isProGrading = actualModelUsed.includes('pro');
       const multGrading = isProGrading ? 6 : 5;
       const totalTok = promptTok + (candTok * multGrading); // 5x for Flash, 6x for Pro
@@ -3175,7 +3138,8 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
   });
 
   // --- Post Token Usage Log from Client or Internal Services ---
-  app.post('/api/token-billing/log', extractFirebaseUserOptional, (req: any, res: any) => {
+  // Manual log injection is admin-only: teachers' usage is recorded by the AI routes themselves.
+  app.post('/api/token-billing/log', authenticateFirebaseUser, requireAdmin, (req: any, res: any) => {
     try {
       const {
         userId,
