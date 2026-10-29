@@ -26,10 +26,10 @@ const readUser = async (uid: string) => (await db.collection('users').doc(uid).g
 async function main() {
   console.log('\nToken accounting');
 
-  await test('multipliers are fixed: Flash x5, Pro x6 (profit margin)', () => {
-    eq(FLASH_OUTPUT_MULTIPLIER, 5); eq(PRO_OUTPUT_MULTIPLIER, 6);
+  await test('multipliers are fixed: Flash x5, Pro x7 (profit margin)', () => {
+    eq(FLASH_OUTPUT_MULTIPLIER, 5); eq(PRO_OUTPUT_MULTIPLIER, 7);
     eq(computeBillableTokens(1000, 100, 'gemini-3.8-flash'), 1500, 'flash');
-    eq(computeBillableTokens(1000, 100, 'gemini-3.1-pro-preview'), 1600, 'pro');
+    eq(computeBillableTokens(1000, 100, 'gemini-3.1-pro-preview'), 1700, 'pro');
     eq(computeBillableTokens(0, 0, 'gemini-3.8-flash'), 0, 'zero');
   });
 
@@ -71,7 +71,7 @@ async function main() {
     const b = await recordTokenUsage(db, p);
     eq(a.status, 'recorded'); eq(b.status, 'duplicate');
     const u = await readUser('t2');
-    eq(u.tokens_used, 500); eq(u.tokens_used_total, 500);
+    eq(u.tokens_used, 550); eq(u.tokens_used_total, 550);
     const logs = await db.collection('token_usage_logs').where('user_id', '==', 't2').get();
     eq(logs.size, 1);
   });

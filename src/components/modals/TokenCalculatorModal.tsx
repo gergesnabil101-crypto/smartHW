@@ -80,8 +80,8 @@ export const TokenCalculatorModal: React.FC<TokenCalculatorModalProps> = ({
   const [detailedMcqCount, setDetailedMcqCount] = useState<number>(10);
 
   // Tokens factor per question type
-  // Output tokens multiplier: 5x for Flash, 6x for Pro
-  const outputMult = selectedModel === 'pro' ? 6 : 5;
+  // Output tokens multiplier: 5x for Flash, 7x for Pro
+  const outputMult = selectedModel === 'pro' ? 7 : 5;
   const tokensPerEssay = subjectType === 'science' 
     ? (450 + 100 * outputMult) 
     : (350 + 80 * outputMult);

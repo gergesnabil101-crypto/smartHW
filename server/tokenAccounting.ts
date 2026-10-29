@@ -2,10 +2,10 @@ import { createHash } from 'crypto';
 
 /**
  * Billing multipliers for output tokens. These define the platform's profit margin
- * and MUST stay fixed: Flash x5, Pro x6 (see test/tokenAccounting.test.ts).
+ * and MUST stay fixed: Flash x5, Pro x7 (see test/tokenAccounting.test.ts).
  */
 export const FLASH_OUTPUT_MULTIPLIER = 5;
-export const PRO_OUTPUT_MULTIPLIER = 6;
+export const PRO_OUTPUT_MULTIPLIER = 7;
 
 export type TokenOperation = 'essay_grading' | 'doc_extraction' | 'quiz_generation' | 'image_ocr' | 'general';
 
@@ -62,7 +62,7 @@ export const isProModel = (model?: string | null): boolean => String(model || ''
 export const getOutputMultiplier = (model?: string | null): number =>
   isProModel(model) ? PRO_OUTPUT_MULTIPLIER : FLASH_OUTPUT_MULTIPLIER;
 
-/** Billable tokens = prompt + candidates * multiplier (x5 Flash, x6 Pro). */
+/** Billable tokens = prompt + candidates * multiplier (x5 Flash, x7 Pro). */
 export const computeBillableTokens = (promptTokens: number, candidatesTokens: number, model?: string | null): number => {
   const p = Math.max(0, Math.floor(Number(promptTokens) || 0));
   const c = Math.max(0, Math.floor(Number(candidatesTokens) || 0));

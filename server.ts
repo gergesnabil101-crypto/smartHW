@@ -1165,7 +1165,7 @@ function logTokenUsageEvent(params: {
 }) {
   const model = params.model || 'gemini-3.8-flash';
   const isPro = model.includes('pro');
-  const outputMultiplier = isPro ? 6 : 5;
+  const outputMultiplier = isPro ? 7 : 5;
   const promptTokens = Math.max(0, params.promptTokens || 0);
   const candidatesTokens = Math.max(0, params.candidatesTokens || 0);
   const cachedTokens = Math.max(0, params.cachedTokens || 0);
@@ -1566,8 +1566,8 @@ async function startServer() {
       const pTokens = result.usageMetadata?.promptTokenCount || 0;
       const cTokens = result.usageMetadata?.candidatesTokenCount || 0;
       const isProModel = modelName.includes('pro');
-      const mult = isProModel ? 6 : 5;
-      const tTokens = pTokens + (cTokens * mult); // 5x for Flash, 6x for Pro
+      const mult = isProModel ? 7 : 5;
+      const tTokens = pTokens + (cTokens * mult); // 5x for Flash, 7x for Pro
       const cachedTokens = result.usageMetadata?.cachedContentTokenCount || 0;
 
       if (result.usageMetadata) {
@@ -3046,8 +3046,8 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
       const promptTok = aiResult.usageMetadata?.promptTokenCount || 0;
       const candTok = aiResult.usageMetadata?.candidatesTokenCount || 0;
       const isProGrading = actualModelUsed.includes('pro');
-      const multGrading = isProGrading ? 6 : 5;
-      const totalTok = promptTok + (candTok * multGrading); // 5x for Flash, 6x for Pro
+      const multGrading = isProGrading ? 7 : 5;
+      const totalTok = promptTok + (candTok * multGrading); // 5x for Flash, 7x for Pro
 
       if (aiResult.usageMetadata) {
         aiResult.usageMetadata.totalTokenCount = totalTok;
@@ -3255,14 +3255,14 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
       const inRate = isUserPro ? 1.25 : 0.75;
       const outRate = isUserPro ? 7.50 : 3.75;
       const cachedRate = isUserPro ? 0.3125 : 0.1875;
-      const outputMult = isUserPro ? 6 : 5;
+      const outputMult = isUserPro ? 7 : 5;
 
-      // Calculate aggregated metrics from logs + Firestore user stats with model-aware multiplier (6x for Pro, 5x for Flash)
+      // Calculate aggregated metrics from logs + Firestore user stats with model-aware multiplier (7x for Pro, 5x for Flash)
       let totalTokens = matchingLogs.reduce((s, l) => {
         const p = Number(l.prompt_tokens || 0);
         const c = Number(l.candidates_tokens || 0);
         const isLogPro = String(l.model || '').toLowerCase().includes('pro');
-        const lMult = isLogPro ? 6 : 5;
+        const lMult = isLogPro ? 7 : 5;
         return s + Math.max(p + (c * lMult), Number(l.total_tokens || 0));
       }, 0);
       let promptTokens = matchingLogs.reduce((s, l) => s + Number(l.prompt_tokens || 0), 0);
@@ -3310,7 +3310,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
         const p = Number(l.prompt_tokens || 0);
         const c = Number(l.candidates_tokens || 0);
         const isLogPro = String(l.model || '').toLowerCase().includes('pro');
-        const lMult = isLogPro ? 6 : 5;
+        const lMult = isLogPro ? 7 : 5;
         const billable = p + (c * lMult);
         opGroups[opKey].tokens += Math.max(billable, Number(l.total_tokens || 0));
         opGroups[opKey].prompt += p;
@@ -3383,7 +3383,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
         daily_trends: [],
         recent_logs: matchingLogs.slice(0, 50),
         pricing_rates: {
-          model_name: isUserPro ? 'Gemini 3.1 Pro (6x Outputs 👑)' : 'gemini-3.8-flash',
+          model_name: isUserPro ? 'Gemini 3.1 Pro (7x Outputs 👑)' : 'gemini-3.8-flash',
           input_per_million_usd: inRate,
           output_per_million_usd: outRate,
           cached_per_million_usd: cachedRate,
@@ -6182,8 +6182,8 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
                   const pTokens = aiResult.usageMetadata.promptTokenCount || 0;
                   const cTokens = aiResult.usageMetadata.candidatesTokenCount || 0;
                   const isSubPro = actualSubModel && actualSubModel.includes('pro');
-                  const outputMultiplier = isSubPro ? 6 : 5;
-                  const tTokens = pTokens + (cTokens * outputMultiplier); // 5X for Flash, 6X for Pro
+                  const outputMultiplier = isSubPro ? 7 : 5;
+                  const tTokens = pTokens + (cTokens * outputMultiplier); // 5X for Flash, 7X for Pro
                   totalAiTokensInSubmission += tTokens;
                   const cachedTokens = aiResult.usageMetadata.cachedContentTokenCount || 0;
 
