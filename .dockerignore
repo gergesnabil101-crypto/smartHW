@@ -1,0 +1,13 @@
+node_modules
+dist
+android
+.git
+.github
+test
+*.log
+*.cjs
+test-*.js
+*.md
+hany_audit.json
+.env*
+.ENV*

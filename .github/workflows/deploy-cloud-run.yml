@@ -1,0 +1,60 @@
+# Deploys SmartHW to Cloud Run.
+# Runs on every push to `main` (i.e. after a PR is merged) or manually from the Actions tab.
+# Required repository secrets / variables (Settings → Secrets and variables → Actions):
+#   secret  GCP_SA_KEY          JSON key of a service account with roles: Cloud Run Admin,
+#                               Cloud Build Editor, Service Account User, Artifact Registry Writer
+#   var     GCP_PROJECT_ID      e.g. gen-lang-client-0552360485
+#   var     GCP_REGION          e.g. europe-west2
+#   var     CLOUD_RUN_SERVICE   e.g. smarthw
+# Runtime secrets (GEMINI_API_KEY, STRIPE_*, SMTP_*) are configured once on the Cloud Run
+# service itself (Variables & Secrets tab) and are preserved across deploys.
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-cloud-run
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx tsc --noEmit
+      - run: npm run test:grading
+      - run: npm run build
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+      - name: Deploy
+        run: |
+          gcloud run deploy "${{ vars.CLOUD_RUN_SERVICE }}" \
+            --source . \
+            --region "${{ vars.GCP_REGION }}" \
+            --project "${{ vars.GCP_PROJECT_ID }}" \
+            --allow-unauthenticated \
+            --quiet
+      - name: Show URL
+        run: |
+          gcloud run services describe "${{ vars.CLOUD_RUN_SERVICE }}" \
+            --region "${{ vars.GCP_REGION }}" --project "${{ vars.GCP_PROJECT_ID }}" \
+            --format 'value(status.url)'

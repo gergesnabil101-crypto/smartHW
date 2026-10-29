@@ -734,14 +734,14 @@ export const TokenBillingModal: React.FC<TokenBillingModalProps> = ({
     const currentRatePerMillion = isAccountPro 
       ? CLIENT_TOKEN_PRICING.pro_price_per_million_egp 
       : CLIENT_TOKEN_PRICING.price_per_million_egp;
-    const accountOutputMultiplier = isAccountPro ? 6 : 5;
+    const accountOutputMultiplier = isAccountPro ? 7 : 5;
 
-    // Token sums from matching logs with dynamic output multiplier: 5x for Flash, 6x for Pro
+    // Token sums from matching logs with dynamic output multiplier: 5x for Flash, 7x for Pro
     const logsTotalTokens = matchingLogs.reduce((sum, l) => {
       const p = Number(l.prompt_tokens || 0);
       const c = Number(l.candidates_tokens || 0);
       const isLogPro = String(l.model || '').toLowerCase().includes('pro') || isAccountPro;
-      const mult = isLogPro ? 6 : 5;
+      const mult = isLogPro ? 7 : 5;
       const strictBillable = (p > 0 || c > 0) ? (p + (c * mult)) : Math.max(0, Number(l.total_tokens || 0));
       return sum + strictBillable;
     }, 0);
@@ -765,7 +765,7 @@ export const TokenBillingModal: React.FC<TokenBillingModalProps> = ({
     let cachedTokens = logsCachedTokens;
 
     if (logsTotalTokens === 0 && periodTokens > 0) {
-      // Model Gemini Flash / Pro input/output distribution applying the 5x or 6x output weighting:
+      // Model Gemini Flash / Pro input/output distribution applying the 5x or 7x output weighting:
       promptTokens = Math.round(periodTokens * 0.75);
       candidatesTokens = Math.max(0, Math.round((periodTokens - promptTokens) / accountOutputMultiplier));
       cachedTokens = Math.round(promptTokens * 0.12);
@@ -825,7 +825,7 @@ export const TokenBillingModal: React.FC<TokenBillingModalProps> = ({
         const p = Number(l.prompt_tokens || 0);
         const c = Number(l.candidates_tokens || 0);
         const isLogPro = String(l.model || '').toLowerCase().includes('pro') || isAccountPro;
-        const mult = isLogPro ? 6 : 5;
+        const mult = isLogPro ? 7 : 5;
         const opStrictTotal = (p > 0 || c > 0) ? (p + (c * mult)) : Math.max(0, Number(l.total_tokens || 0));
         grouped[opKey].prompt += p;
         grouped[opKey].candidates += c;
@@ -872,28 +872,28 @@ export const TokenBillingModal: React.FC<TokenBillingModalProps> = ({
     } else {
       const essayGradingTokens = Math.round(periodTokens * 0.65);
       const essayPrompt = Math.round(essayGradingTokens * 0.75);
-      const essayCandidates = Math.max(0, Math.round((essayGradingTokens - essayPrompt) / (isAccountPro ? 6 : 5)));
+      const essayCandidates = Math.max(0, Math.round((essayGradingTokens - essayPrompt) / (isAccountPro ? 7 : 5)));
       const essayRealCost = calculateActualTokenCost(essayPrompt, essayCandidates, 0, usdToEgpRate, usdToSarRate, isAccountPro ? 'pro' : 'flash');
       const essayClientCostEgp = (essayGradingTokens / 1_000_000) * currentRatePerMillion;
       const essayFinalCostEgp = isClientMode ? essayClientCostEgp : essayRealCost.totalCostEgp;
 
       const docExtractTokens = Math.round(periodTokens * 0.20);
       const docPrompt = Math.round(docExtractTokens * 0.85);
-      const docCandidates = Math.max(0, Math.round((docExtractTokens - docPrompt) / (isAccountPro ? 6 : 5)));
+      const docCandidates = Math.max(0, Math.round((docExtractTokens - docPrompt) / (isAccountPro ? 7 : 5)));
       const docRealCost = calculateActualTokenCost(docPrompt, docCandidates, 0, usdToEgpRate, usdToSarRate, isAccountPro ? 'pro' : 'flash');
       const docClientCostEgp = (docExtractTokens / 1_000_000) * currentRatePerMillion;
       const docFinalCostEgp = isClientMode ? docClientCostEgp : docRealCost.totalCostEgp;
 
       const quizGenTokens = Math.round(periodTokens * 0.10);
       const quizGenPrompt = Math.round(quizGenTokens * 0.60);
-      const quizGenCandidates = Math.max(0, Math.round((quizGenTokens - quizGenPrompt) / (isAccountPro ? 6 : 5)));
+      const quizGenCandidates = Math.max(0, Math.round((quizGenTokens - quizGenPrompt) / (isAccountPro ? 7 : 5)));
       const quizGenRealCost = calculateActualTokenCost(quizGenPrompt, quizGenCandidates, 0, usdToEgpRate, usdToSarRate, isAccountPro ? 'pro' : 'flash');
       const quizGenClientCostEgp = (quizGenTokens / 1_000_000) * currentRatePerMillion;
       const quizGenFinalCostEgp = isClientMode ? quizGenClientCostEgp : quizGenRealCost.totalCostEgp;
 
       const otherTokens = Math.max(0, periodTokens - essayGradingTokens - docExtractTokens - quizGenTokens);
       const otherPrompt = Math.round(otherTokens * 0.70);
-      const otherCandidates = Math.max(0, Math.round((otherTokens - otherPrompt) / (isAccountPro ? 6 : 5)));
+      const otherCandidates = Math.max(0, Math.round((otherTokens - otherPrompt) / (isAccountPro ? 7 : 5)));
       const otherRealCost = calculateActualTokenCost(otherPrompt, otherCandidates, 0, usdToEgpRate, usdToSarRate, isAccountPro ? 'pro' : 'flash');
       const otherClientCostEgp = (otherTokens / 1_000_000) * currentRatePerMillion;
       const otherFinalCostEgp = isClientMode ? otherClientCostEgp : otherRealCost.totalCostEgp;
@@ -2118,7 +2118,7 @@ export const TokenBillingModal: React.FC<TokenBillingModalProps> = ({
                       <h3 className="text-lg font-black text-white flex items-center gap-2">
                         <span>التسعير الرسمي الدقيق لنماذج Google Gemini</span>
                         <span className="text-xs bg-indigo-500/30 text-indigo-200 px-2 py-0.5 rounded-full border border-indigo-400/30 font-mono">
-                          {pricingModelMode === 'pro' ? 'Gemini 3.1 Pro (6x Outputs)' : 'Gemini 3.8 Flash (5x Outputs)'}
+                          {pricingModelMode === 'pro' ? 'Gemini 3.1 Pro (7x Outputs)' : 'Gemini 3.8 Flash (5x Outputs)'}
                         </span>
                       </h3>
                       <p className="text-xs text-emerald-200">
@@ -2141,7 +2141,7 @@ export const TokenBillingModal: React.FC<TokenBillingModalProps> = ({
                       }`}
                     >
                       <span>نظام برو (Gemini Pro 👑)</span>
-                      <span className="text-[10px] bg-purple-900/50 px-1.5 py-0.2 rounded font-mono">6x</span>
+                      <span className="text-[10px] bg-purple-900/50 px-1.5 py-0.2 rounded font-mono">7x</span>
                     </button>
                     <button
                       type="button"
@@ -2271,7 +2271,7 @@ export const TokenBillingModal: React.FC<TokenBillingModalProps> = ({
                           pricingModelMode === 'pro' ? 'bg-purple-700 text-white shadow-2xs' : 'text-slate-600'
                         }`}
                       >
-                        برو (6x)
+                        برو (7x)
                       </button>
                       <button
                         type="button"
@@ -2310,7 +2310,7 @@ export const TokenBillingModal: React.FC<TokenBillingModalProps> = ({
                     <label className="font-bold text-slate-700">
                       عدد توكنز المخرجات (Outputs):
                       <span className="text-[10px] text-purple-600 mr-1 font-mono font-bold">
-                        (${pricingModelMode === 'pro' ? '12.00' : '3.75'}/1M - {pricingModelMode === 'pro' ? '6x' : '5x'})
+                        (${pricingModelMode === 'pro' ? '12.00' : '3.75'}/1M - {pricingModelMode === 'pro' ? '7x' : '5x'})
                       </span>
                     </label>
                     <input
@@ -2690,7 +2690,7 @@ export const TokenBillingModal: React.FC<TokenBillingModalProps> = ({
                         const cand = Number(log.candidates_tokens || 0);
                         const prompt = Number(log.prompt_tokens || 0);
                         const isProLog = String(log.model || '').toLowerCase().includes('pro') || currentSummary.client_rate_per_million_egp === 250;
-                        const mult = isProLog ? 6 : 5;
+                        const mult = isProLog ? 7 : 5;
                         const strictTotal = (prompt > 0 || cand > 0) ? (prompt + (cand * mult)) : Math.max(0, Number(log.total_tokens || 0));
                         return (
                           <tr key={log.id ? `log_${log.id}_${logIdx}` : `log_idx_${logIdx}`} className="hover:bg-slate-50 transition-colors">
@@ -2708,7 +2708,7 @@ export const TokenBillingModal: React.FC<TokenBillingModalProps> = ({
                             </td>
                             <td className="p-3 text-center font-mono font-bold text-indigo-700">
                               <div>{strictTotal.toLocaleString()}</div>
-                              <span className={`text-[9.5px] font-medium ${mult === 6 ? 'text-purple-600' : 'text-indigo-600'} font-sans block`}>
+                              <span className={`text-[9.5px] font-medium ${mult === 7 ? 'text-purple-600' : 'text-indigo-600'} font-sans block`}>
                                 (مخرجات ×{mult}: {(cand * mult).toLocaleString()})
                               </span>
                             </td>

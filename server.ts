@@ -8,9 +8,12 @@ import Stripe from 'stripe';
 import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 import nodemailer from 'nodemailer';
 import { initializeApp, getApps } from 'firebase-admin/app';
+import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getAppCheck } from 'firebase-admin/app-check';
+import { recordTokenUsage, computeBillableTokens, type TokenOperation } from './server/tokenAccounting.ts';
+import { normalizeGradingResult, GRADING_RESPONSE_SCHEMA } from './server/grading.ts';
 
 // Load Firebase configuration
 let firebaseConfig: any = {};
@@ -751,65 +754,14 @@ async function verifyTeacherActiveSubscriptionAndQuota(
   }
 }
 
+// Token deduction now happens atomically inside recordTokenUsage (server/tokenAccounting.ts),
+// exactly once per usage log. Kept as a thin wrapper for any legacy caller.
 async function trackServerTokenUsage(uid: string, tokens: number) {
   if (!uid || tokens <= 0) return;
   try {
-    const userRef = adminDb.collection('users').doc(uid);
-    const userDoc = await userRef.get();
-    if (!userDoc.exists) return;
-    const userData = userDoc.data() || {};
-    const todayStr = new Date().toISOString().split('T')[0];
-    
-    let tokensToday = userData.tokens_used_today || 0;
-    const lastReset = userData.last_token_reset_date || '';
-    let extraTokens = userData.extra_tokens || 0;
-    
-    if (lastReset !== todayStr) {
-      tokensToday = 0;
-    }
-
-    const subType = (userData.subscription_type || '').toLowerCase();
-    const isTrialUser = (userData.subscription_status || 'trial') === 'trial' && userData.role !== 'admin';
-    const isTokenPlan = !isTrialUser && Boolean(
-      userData.custom_tokens_millions ||
-      subType.startsWith('token_') ||
-      subType.startsWith('custom_') ||
-      subType.includes('m') ||
-      userData.role === 'admin'
-    );
-
-    // If teacher is on Token Charging system: directly increment tokens_used with no daily resets blocking them
-    if (isTokenPlan) {
-      await userRef.set({
-        tokens_used: FieldValue.increment(tokens),
-        tokens_used_today: tokensToday + tokens,
-        last_token_reset_date: todayStr
-      }, { merge: true });
-      return;
-    }
-
-    let dailyLimit = 50000; // الفترة المجانية: 50 ألف توكنز يومياً
-    if (isTrialUser) {
-      dailyLimit = 50000;
-    } else if (subType === '100' || subType === 'theory_200') dailyLimit = 25000;
-    else if (subType === '200' || subType === 'science_250') dailyLimit = 50000;
-    else if (subType === '500' || subType === 'unlimited' || subType === 'monthly' || subType === 'yearly' || subType === 'theory_yearly' || subType === 'science_yearly') dailyLimit = 150000;
-
-    if (tokensToday >= dailyLimit && extraTokens > 0) {
-      await userRef.set({
-        tokens_used: FieldValue.increment(tokens),
-        extra_tokens: Math.max(0, extraTokens - tokens),
-        last_token_reset_date: todayStr
-      }, { merge: true });
-    } else {
-      await userRef.set({
-        tokens_used: FieldValue.increment(tokens),
-        tokens_used_today: tokensToday + tokens,
-        last_token_reset_date: todayStr
-      }, { merge: true });
-    }
+    await recordTokenUsage(adminDb, { userId: uid, operation: 'general', promptTokens: tokens, candidatesTokens: 0 });
   } catch (e: any) {
-    // Silently ignore tracking errors in AI Studio sandbox due to IAM restrictions on adminDb writes
+    console.warn('[tokens] trackServerTokenUsage failed:', e?.message || e);
   }
 }
 
@@ -1057,6 +1009,33 @@ const verifyAppCheckOptional = async (req: any, res: any, next: any) => {
 };
 
 
+// --- Firebase ID token verification ---
+// Falls back to verifying the signature locally against Google's public keys when the Admin
+// verification API is unreachable. Unsigned or forged tokens are always rejected.
+const FIREBASE_AUTH_PROJECT_ID = firebaseConfig.projectId || process.env.FIREBASE_PROJECT_ID || 'gen-lang-client-0552360485';
+const firebaseIdTokenJwks = createRemoteJWKSet(
+  new URL('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com')
+);
+
+const verifyFirebaseIdToken = async (token: string): Promise<any> => {
+  try {
+    return await adminAuth.verifyIdToken(token);
+  } catch (adminErr: any) {
+    try {
+      const { payload } = await jwtVerify(token, firebaseIdTokenJwks, {
+        issuer: `https://securetoken.google.com/${FIREBASE_AUTH_PROJECT_ID}`,
+        audience: FIREBASE_AUTH_PROJECT_ID,
+        algorithms: ['RS256']
+      });
+      if (!payload.sub) throw new Error('Token has no subject');
+      return { ...payload, uid: payload.sub };
+    } catch (localErr: any) {
+      console.warn('Local ID token verification failed:', localErr?.message);
+      throw adminErr;
+    }
+  }
+};
+
 // --- Firebase Authentication Middleware (Verified via Firebase Admin SDK) ---
 const authenticateFirebaseUser = async (req: any, res: any, next: any) => {
   const authHeader = req.headers['authorization'];
@@ -1067,7 +1046,7 @@ const authenticateFirebaseUser = async (req: any, res: any, next: any) => {
   }
 
   try {
-    const decodedToken = await adminAuth.verifyIdToken(token);
+    const decodedToken = await verifyFirebaseIdToken(token);
     const email = (decodedToken.email || '').toLowerCase().trim();
     const isAdminEmail = email === 'gergesnabil101@gmail.com';
 
@@ -1086,29 +1065,6 @@ const authenticateFirebaseUser = async (req: any, res: any, next: any) => {
 
     next();
   } catch (err: any) {
-    // Fallback: decode JWT payload locally if remote verification fails due to API disabled or network
-    try {
-      const parts = token.split('.');
-      if (parts.length === 3) {
-        const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
-        const uid = payload.sub || payload.user_id;
-        const email = (payload.email || '').toLowerCase().trim();
-        if (uid) {
-          const isAdminEmail = email === 'gergesnabil101@gmail.com';
-          req.user = {
-            id: uid,
-            uid: uid,
-            email: email,
-            role: isAdminEmail ? 'admin' : 'user',
-            admin: isAdminEmail
-          };
-          return next();
-        }
-      }
-    } catch (jwtErr) {
-      console.warn('JWT local decode fallback failed:', jwtErr);
-    }
-
     console.warn('Firebase ID Token verification error:', err.message);
     return res.status(403).json({ error: 'جلسة العمل انتهت أو غير صالحة. يرجى تسجيل الدخول مرة أخرى.' });
   }
@@ -1209,7 +1165,7 @@ function logTokenUsageEvent(params: {
 }) {
   const model = params.model || 'gemini-3.8-flash';
   const isPro = model.includes('pro');
-  const outputMultiplier = isPro ? 6 : 5;
+  const outputMultiplier = isPro ? 7 : 5;
   const promptTokens = Math.max(0, params.promptTokens || 0);
   const candidatesTokens = Math.max(0, params.candidatesTokens || 0);
   const cachedTokens = Math.max(0, params.cachedTokens || 0);
@@ -1250,7 +1206,7 @@ function logTokenUsageEvent(params: {
   };
 
   const record: ServerTokenLogRecord = {
-    id: `tok_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    id: `tok_pending_${now}`,
     timestamp: new Date().toISOString(),
     user_id: params.userId || 'anonymous',
     user_name: params.userName || '',
@@ -1270,19 +1226,32 @@ function logTokenUsageEvent(params: {
     student_name: params.studentName || ''
   };
 
-  inMemoryTokenLogs.unshift(record);
-  if (inMemoryTokenLogs.length > MAX_IN_MEMORY_LOGS) {
-    inMemoryTokenLogs.pop();
-  }
-
-  // Write to Firestore securely via Admin SDK to ensure persistence across container restarts
-  if (totalTokens > 0) {
-    adminDb.collection('token_usage_logs').doc(record.id).set(record).catch(() => {});
-  }
-
-  if (params.userId && totalTokens > 0) {
-    trackServerTokenUsage(params.userId, totalTokens).catch(() => {});
-  }
+  // Single source of truth: one transaction writes the log (deterministic id) and increments
+  // the teacher's counters exactly once. Duplicates (retries, double callers) are ignored.
+  recordTokenUsage(adminDb, {
+    userId: params.userId,
+    userName: params.userName,
+    userEmail: params.userEmail,
+    operation: params.operation as TokenOperation,
+    operationLabel: record.operation_label,
+    model,
+    promptTokens,
+    candidatesTokens,
+    cachedTokens,
+    quizId: params.quizId,
+    quizTitle: params.quizTitle,
+    studentName: params.studentName,
+    usdToEgpRate: params.usdToEgpRate
+  }).then((result) => {
+    if (result.status === 'recorded' && result.record) {
+      inMemoryTokenLogs.unshift({ ...record, id: result.record.id, timestamp: result.record.timestamp });
+      if (inMemoryTokenLogs.length > MAX_IN_MEMORY_LOGS) {
+        inMemoryTokenLogs.pop();
+      }
+    }
+  }).catch((e: any) => {
+    console.warn('[tokens] recordTokenUsage failed:', e?.message || e);
+  });
 }
 
 
@@ -1303,11 +1272,10 @@ async function startServer() {
     let event: Stripe.Event;
 
     try {
-      if (webhookSecret && sig) {
-        event = stripe.webhooks.constructEvent(req.body, sig as string, webhookSecret);
-      } else {
-        event = JSON.parse(req.body.toString());
+      if (!webhookSecret || !sig) {
+        return res.status(400).send('Missing Stripe signature or webhook secret');
       }
+      event = stripe.webhooks.constructEvent(req.body, sig as string, webhookSecret);
 
       if (event.type === 'checkout.session.completed') {
         const session = event.data.object as Stripe.Checkout.Session;
@@ -1598,8 +1566,8 @@ async function startServer() {
       const pTokens = result.usageMetadata?.promptTokenCount || 0;
       const cTokens = result.usageMetadata?.candidatesTokenCount || 0;
       const isProModel = modelName.includes('pro');
-      const mult = isProModel ? 6 : 5;
-      const tTokens = pTokens + (cTokens * mult); // 5x for Flash, 6x for Pro
+      const mult = isProModel ? 7 : 5;
+      const tTokens = pTokens + (cTokens * mult); // 5x for Flash, 7x for Pro
       const cachedTokens = result.usageMetadata?.cachedContentTokenCount || 0;
 
       if (result.usageMetadata) {
@@ -2722,6 +2690,7 @@ Return ONLY valid JSON:
     { "description": "وصف الخطوة بالعربية مع المصطلحات العلمية وأسماء المواد بالإنجليزية (مثل: ناتج thermal decomposition هو metal oxide و carbon dioxide)", "points": number, "earned": number }
   ]
 }
+CONSISTENCY RULE (MANDATORY): the "points" of all steps MUST add up exactly to Total Points, and "score" MUST equal the sum of all "earned" values. The server recomputes the score from the steps.
 LANGUAGE RULE (CRITICAL):
 You MUST write the feedback and step descriptions in Arabic, BUT ALL scientific terms, processes, reaction types, chemical elements, compounds, formulas, and tests MUST be written in English (e.g. thermal decomposition, simple substitution, double substitution, neutralization, oxidation and reduction, metal oxide, carbon dioxide, hydrogen gas, pop sound, sodium hydroxide, balanced equation). NEVER translate these scientific terms to Arabic alone without English.`;
     }
@@ -2799,6 +2768,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
     { "description": "وصف الخطوة بالعربية الفصحى (مثل: إجابة صحيحة ومطابقة للنموذج: علم مؤنث / العلمية والتأنيث)", "points": number, "earned": number }
   ]
 }
+قاعدة الاتساق (إلزامية): مجموع "points" لكل الخطوات يجب أن يساوي الدرجة الكلية بالضبط، و"score" يجب أن يساوي مجموع قيم "earned". الخادم يعيد حساب الدرجة من الخطوات.
 `;
     }
 
@@ -2887,6 +2857,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
     { "description": "وصف الجزء أو الخطوة بالعربية مع المصطلحات بالإنجليزية (مثال: كتابة القانون الفيزيائي والتعويض بالأرقام)", "points": number, "earned": number }
   ]
 }
+قاعدة الاتساق (إلزامية): مجموع "points" لكل الخطوات يجب أن يساوي الدرجة الكلية بالضبط، و"score" يجب أن يساوي مجموع قيم "earned". الخادم يعيد حساب الدرجة من الخطوات.
 `;
     }
 
@@ -2934,6 +2905,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
     { "description": "وصف الجزء أو الفكرة المستوفاة بالمعنى بأسلوب الطالب", "points": number, "earned": number }
   ]
 }
+قاعدة الاتساق (إلزامية): مجموع "points" لكل الخطوات يجب أن يساوي الدرجة الكلية بالضبط، و"score" يجب أن يساوي مجموع قيم "earned". الخادم يعيد حساب الدرجة من الخطوات.
 `;
   }
 
@@ -3036,6 +3008,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
           const ai = getGeminiClient(customApiKey);
           const configObj: any = {
             responseMimeType: 'application/json',
+            responseSchema: GRADING_RESPONSE_SCHEMA,
             maxOutputTokens: isProModel ? 8192 : 1200
           };
           if (isProModel) {
@@ -3056,6 +3029,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
                 contents: gradingPrompt,
                 config: {
                   responseMimeType: 'application/json',
+                  responseSchema: GRADING_RESPONSE_SCHEMA,
                   maxOutputTokens: 1200
                 }
               });
@@ -3069,11 +3043,11 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
       const aiResult = await geminiConcurrencyQueue.execute(aiTask);
       const actualModelUsed = (aiResult as any).modelUsed || modelToUse;
       
-      const promptTok = aiResult.usageMetadata?.promptTokenCount || 350;
-      const candTok = aiResult.usageMetadata?.candidatesTokenCount || 80;
+      const promptTok = aiResult.usageMetadata?.promptTokenCount || 0;
+      const candTok = aiResult.usageMetadata?.candidatesTokenCount || 0;
       const isProGrading = actualModelUsed.includes('pro');
-      const multGrading = isProGrading ? 6 : 5;
-      const totalTok = promptTok + (candTok * multGrading); // 5x for Flash, 6x for Pro
+      const multGrading = isProGrading ? 7 : 5;
+      const totalTok = promptTok + (candTok * multGrading); // 5x for Flash, 7x for Pro
 
       if (aiResult.usageMetadata) {
         aiResult.usageMetadata.totalTokenCount = totalTok;
@@ -3094,6 +3068,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
       });
 
       let parsedResult: any = safeParseAiJsonServer(aiResult.text || '');
+      const parseFailed = !parsedResult;
       if (!parsedResult) {
         const obsRescue = checkScientificObservationPartialCreditServer(studentText, modelAnswer, qPoints, isEnglish);
         if (obsRescue) {
@@ -3112,52 +3087,22 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
         }
       }
 
-      let awardedScore = typeof parsedResult.score === 'number' ? parsedResult.score : 0;
-      awardedScore = Math.max(0, Math.min(qPoints, awardedScore));
+      const graded = normalizeGradingResult(parsedResult, qPoints, { isEnglish: isEnglish, parseFailed });
 
-      const isGradedCorrect = parsedResult.status === 'correct' || awardedScore >= (qPoints * 0.75);
+      const awardedScore = graded.score;
 
-      // Extract and sanitize steps breakdown
-      let returnedSteps: Array<{ description: string; points: number; earned: number }> = [];
-      if (Array.isArray(parsedResult.steps) && parsedResult.steps.length > 0) {
-        returnedSteps = parsedResult.steps.map((s: any) => ({
-          description: String(s.description || (isEnglish ? 'Step' : 'خطوة')),
-          points: typeof s.points === 'number' ? s.points : 1,
-          earned: typeof s.earned === 'number' ? s.earned : 0
-        }));
-      } else {
-        // Synthesize clear step breakdown if AI provided partial credit without explicit steps array
-        if (awardedScore > 0 && awardedScore < qPoints) {
-          returnedSteps = [
-            {
-              description: isEnglish ? 'Correct Steps / Parts' : 'الخطوات والأجزاء الصحيحة',
-              points: awardedScore,
-              earned: awardedScore
-            },
-            {
-              description: isEnglish ? 'Deduction for incorrect/missing step' : 'خصم الخطوة أو الجزء الخاطئ/الناقص',
-              points: Number((qPoints - awardedScore).toFixed(2)),
-              earned: 0
-            }
-          ];
-        } else if (awardedScore >= qPoints) {
-          returnedSteps = [
-            {
-              description: isEnglish ? 'All steps completed correctly' : 'جميع الخطوات مكتملة وصحيحة',
-              points: qPoints,
-              earned: qPoints
-            }
-          ];
-        }
-      }
+      const returnedSteps = graded.steps;
+
+      const isGradedCorrect = graded.isCorrect;
 
       return res.json({
         score: awardedScore,
-        status: parsedResult.status || (awardedScore >= qPoints ? 'correct' : awardedScore > 0 ? 'partial' : 'incorrect'),
-        feedback: parsedResult.feedback || (awardedScore >= qPoints ? (isEnglish ? 'Excellent! Correct answer conveying the concept in your own style.' : 'إجابة ممتازة وصحيحة بالمعنى والمفهوم المطلوب معبراً عنها بأسلوبك الخاص.') : awardedScore > 0 ? (isEnglish ? 'Partial credit awarded for correct parts.' : 'تم احتساب درجة جزئية عن الأجزاء الصحيحة بالمعنى.') : (isEnglish ? 'The answer does not convey the required conceptual meaning.' : 'الإجابة لا تعبر عن المعنى أو المفهوم المطلوب في السؤال.')),
+        status: graded.status,
+        feedback: graded.feedback,
         correctExample: modelAnswer || (isEnglish ? 'Standard model answer' : 'الإجابة النموذجية المعتمدة'),
         steps: returnedSteps,
         isCorrect: isGradedCorrect,
+        needs_review: graded.needsReview,
         model: actualModelUsed,
         usageMetadata: {
           promptTokenCount: promptTok,
@@ -3171,7 +3116,8 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
   });
 
   // --- Post Token Usage Log from Client or Internal Services ---
-  app.post('/api/token-billing/log', extractFirebaseUserOptional, (req: any, res: any) => {
+  // Manual log injection is admin-only: teachers' usage is recorded by the AI routes themselves.
+  app.post('/api/token-billing/log', authenticateFirebaseUser, requireAdmin, (req: any, res: any) => {
     try {
       const {
         userId,
@@ -3309,14 +3255,14 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
       const inRate = isUserPro ? 1.25 : 0.75;
       const outRate = isUserPro ? 7.50 : 3.75;
       const cachedRate = isUserPro ? 0.3125 : 0.1875;
-      const outputMult = isUserPro ? 6 : 5;
+      const outputMult = isUserPro ? 7 : 5;
 
-      // Calculate aggregated metrics from logs + Firestore user stats with model-aware multiplier (6x for Pro, 5x for Flash)
+      // Calculate aggregated metrics from logs + Firestore user stats with model-aware multiplier (7x for Pro, 5x for Flash)
       let totalTokens = matchingLogs.reduce((s, l) => {
         const p = Number(l.prompt_tokens || 0);
         const c = Number(l.candidates_tokens || 0);
         const isLogPro = String(l.model || '').toLowerCase().includes('pro');
-        const lMult = isLogPro ? 6 : 5;
+        const lMult = isLogPro ? 7 : 5;
         return s + Math.max(p + (c * lMult), Number(l.total_tokens || 0));
       }, 0);
       let promptTokens = matchingLogs.reduce((s, l) => s + Number(l.prompt_tokens || 0), 0);
@@ -3364,7 +3310,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
         const p = Number(l.prompt_tokens || 0);
         const c = Number(l.candidates_tokens || 0);
         const isLogPro = String(l.model || '').toLowerCase().includes('pro');
-        const lMult = isLogPro ? 6 : 5;
+        const lMult = isLogPro ? 7 : 5;
         const billable = p + (c * lMult);
         opGroups[opKey].tokens += Math.max(billable, Number(l.total_tokens || 0));
         opGroups[opKey].prompt += p;
@@ -3437,7 +3383,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
         daily_trends: [],
         recent_logs: matchingLogs.slice(0, 50),
         pricing_rates: {
-          model_name: isUserPro ? 'Gemini 3.1 Pro (6x Outputs 👑)' : 'gemini-3.8-flash',
+          model_name: isUserPro ? 'Gemini 3.1 Pro (7x Outputs 👑)' : 'gemini-3.8-flash',
           input_per_million_usd: inRate,
           output_per_million_usd: outRate,
           cached_per_million_usd: cachedRate,
@@ -3624,7 +3570,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
   });
 
   // --- Admin API: Deep Audit User Token Usage ---
-  app.get('/api/admin/audit-user', async (req: any, res: any) => {
+  app.get('/api/admin/audit-user', authenticateFirebaseUser, requireAdmin, async (req: any, res: any) => {
     try {
       const email = String(req.query.email || '').toLowerCase().trim();
       if (!email) return res.status(400).json({ error: 'email query param is required' });
@@ -4552,8 +4498,25 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
   });
 
   // --- Admin Registration Notification & Automatic Server Sync ---
-  app.post('/api/admin/notify-registration', async (req, res) => {
-    const { uid, name, email, phone, subject, grade_level } = req.body;
+  app.post('/api/admin/notify-registration', async (req: any, res: any) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+    let caller: any = null;
+    if (token && token !== 'null' && token !== 'undefined') {
+      try {
+        caller = await verifyFirebaseIdToken(token);
+      } catch (_) {}
+    }
+    if (!caller) {
+      return res.status(401).json({ error: 'يرجى تسجيل الدخول للوصول إلى هذه الخدمة.' });
+    }
+    const callerEmail = (caller.email || '').toLowerCase().trim();
+    const callerIsAdmin = callerEmail === 'gergesnabil101@gmail.com' || caller.admin === true || caller.role === 'admin';
+    const { uid, name, phone, subject, grade_level } = req.body;
+    if (!uid || (uid !== caller.uid && !callerIsAdmin)) {
+      return res.status(403).json({ error: 'غير مصرح بهذه العملية.' });
+    }
+    const email = callerIsAdmin ? req.body.email : (caller.email || req.body.email);
     
     if (uid && email) {
       const cleanEmail = email.trim().toLowerCase();
@@ -6180,6 +6143,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
                     const ai = getGeminiClient();
                     const subConfigObj: any = {
                       responseMimeType: 'application/json',
+                      responseSchema: GRADING_RESPONSE_SCHEMA,
                       maxOutputTokens: isProQuiz ? 8192 : 1200
                     };
                     if (isProQuiz) {
@@ -6200,6 +6164,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
                           contents: gradingPrompt,
                           config: {
                             responseMimeType: 'application/json',
+                            responseSchema: GRADING_RESPONSE_SCHEMA,
                             maxOutputTokens: 600
                           }
                         });
@@ -6217,8 +6182,8 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
                   const pTokens = aiResult.usageMetadata.promptTokenCount || 0;
                   const cTokens = aiResult.usageMetadata.candidatesTokenCount || 0;
                   const isSubPro = actualSubModel && actualSubModel.includes('pro');
-                  const outputMultiplier = isSubPro ? 6 : 5;
-                  const tTokens = pTokens + (cTokens * outputMultiplier); // 5X for Flash, 6X for Pro
+                  const outputMultiplier = isSubPro ? 7 : 5;
+                  const tTokens = pTokens + (cTokens * outputMultiplier); // 5X for Flash, 7X for Pro
                   totalAiTokensInSubmission += tTokens;
                   const cachedTokens = aiResult.usageMetadata.cachedContentTokenCount || 0;
 
@@ -6237,6 +6202,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
                 }
 
                 let parsedResult: any = safeParseAiJsonServer(aiResult.text || '');
+                const parseFailed = !parsedResult;
                 if (!parsedResult) {
                   const obsRescue = checkScientificObservationPartialCreditServer(studentEssayAns, q.modelAnswer, qPoints, isEnglishQ);
                   if (obsRescue) {
@@ -6255,52 +6221,23 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
                   }
                 }
 
-                let awardedScore = typeof parsedResult.score === 'number' ? parsedResult.score : 0;
-                awardedScore = Math.max(0, Math.min(qPoints, awardedScore));
+                const graded = normalizeGradingResult(parsedResult, qPoints, { isEnglish: isEnglishQ, parseFailed });
 
-                totalCalculatedScore += awardedScore;
+                const awardedScore = graded.score;
 
-                // Extract and sanitize steps breakdown
-                let returnedSteps: Array<{ description: string; points: number; earned: number }> = [];
-                if (Array.isArray(parsedResult.steps) && parsedResult.steps.length > 0) {
-                  returnedSteps = parsedResult.steps.map((s: any) => ({
-                    description: String(s.description || (isEnglishQ ? 'Step' : 'خطوة')),
-                    points: typeof s.points === 'number' ? s.points : 1,
-                    earned: typeof s.earned === 'number' ? s.earned : 0
-                  }));
-                } else {
-                  if (awardedScore > 0 && awardedScore < qPoints) {
-                    returnedSteps = [
-                      {
-                        description: isEnglishQ ? 'Correct Steps / Parts' : 'الخطوات والأجزاء الصحيحة',
-                        points: awardedScore,
-                        earned: awardedScore
-                      },
-                      {
-                        description: isEnglishQ ? 'Deduction for incorrect/missing step' : 'خصم الخطوة أو الجزء الخاطئ/الناقص',
-                        points: Number((qPoints - awardedScore).toFixed(2)),
-                        earned: 0
-                      }
-                    ];
-                  } else if (awardedScore >= qPoints) {
-                    returnedSteps = [
-                      {
-                        description: isEnglishQ ? 'All steps completed correctly' : 'جميع الخطوات مكتملة وصحيحة',
-                        points: qPoints,
-                        earned: qPoints
-                      }
-                    ];
-                  }
-                }
+                const returnedSteps = graded.steps;
+
+                const isGradedCorrect = graded.isCorrect;
 
                 feedbackMap[q.id] = {
                   score: awardedScore,
-                  status: parsedResult.status || (awardedScore >= qPoints ? 'correct' : awardedScore > 0 ? 'partial' : 'incorrect'),
-                  feedback: parsedResult.feedback || (awardedScore >= qPoints ? (isEnglishQ ? 'Excellent! Correct answer conveying the concept in your own style.' : 'إجابة ممتازة وصحيحة بالمعنى والمفهوم المطلوب معبراً عنها بأسلوبك الخاص.') : awardedScore > 0 ? (isEnglishQ ? 'Partial credit awarded for correct parts.' : 'تم احتساب درجة جزئية عن الأجزاء الصحيحة بالمعنى.') : (isEnglishQ ? 'The answer does not convey the required conceptual meaning.' : 'الإجابة لا تعبر عن المعنى أو المفهوم المطلوب في السؤال.')),
+                  status: graded.status,
+                  feedback: graded.feedback,
                   correctExample: q.modelAnswer || (isEnglishQ ? 'Official model answer' : 'الإجابة النموذجية المعتمدة'),
                   studentAnswer: studentEssayAns,
                   steps: returnedSteps,
-                  isCorrect: parsedResult.status === 'correct' || awardedScore >= (qPoints * 0.75)
+                  isCorrect: isGradedCorrect,
+                  needs_review: graded.needsReview
                 };
               } catch (aiErr: any) {
                 console.error('Server AI grading error (safe fallback applied):', aiErr?.message);
@@ -6316,6 +6253,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
                   correctExample: q.modelAnswer || (isEnglishQ ? 'Official model answer' : 'الإجابة النموذجية المعتمدة'),
                   studentAnswer: studentEssayAns,
                   isCorrect: fallbackCheck.matched,
+                  needs_review: !fallbackCheck.matched,
                   steps: fallbackCheck.steps || []
                 };
               }

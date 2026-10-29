@@ -433,106 +433,42 @@ export const trackTokenUsage = async (
 
   if (tokens <= 0) return;
 
-  try {
-    const userRef = doc(db, 'users', effectiveUid);
-    const today = new Date().toISOString().split('T')[0];
-    const userSnap = await getDoc(userRef).catch(() => null);
-    
-    let userData: any = {};
-    if (userSnap && userSnap.exists()) {
-      userData = userSnap.data() || {};
-    }
+  // Deduction and logging happen exclusively on the server (one atomic write per Gemini
+  // response). The client only updates the visible counters optimistically.
+  const opLabels: Record<string, string> = {
+    essay_grading: 'تصحيح مقالي بالمعنى',
+    doc_extraction: 'استخراج بنك أسئلة من ملف/مستند',
+    quiz_generation: 'صياغة وتوليد اختبار ذكي',
+    image_ocr: 'معالجة رموز ومعادلات (OCR)',
+    ocr_equation: 'معالجة رموز ومعادلات (OCR)',
+    extract_questions: 'استخراج بنك أسئلة من ملف/مستند',
+    generate_quiz: 'صياغة وتوليد اختبار ذكي',
+    grade_essay: 'تصحيح مقالي بالمعنى',
+    general_generate: 'معالجة ذكاء اصطناعي'
+  };
+  const rawOp = operationInfo?.operation || 'general_generate';
+  const logDoc = {
+    id: `local_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    timestamp: new Date().toISOString(),
+    user_id: effectiveUid,
+    user_name: operationInfo?.userName || auth.currentUser?.displayName || 'المعلم',
+    user_email: operationInfo?.userEmail || auth.currentUser?.email || '',
+    operation: rawOp,
+    operation_label: operationInfo?.operationLabel || opLabels[rawOp] || 'استدعاء AI',
+    model: operationInfo?.model || (isPro ? 'gemini-3.1-pro-preview' : 'gemini-3.8-flash'),
+    prompt_tokens: promptTokens,
+    candidates_tokens: candidatesTokens,
+    cached_tokens: cachedTokens,
+    total_tokens: tokens,
+    quiz_id: operationInfo?.quizId || '',
+    quiz_title: operationInfo?.quizTitle || '',
+    student_name: operationInfo?.studentName || '',
+    source: 'client-optimistic'
+  };
 
-    const lastReset = userData.last_token_reset_date || '';
-    let tokensToday = Number(userData.tokens_used_today || 0);
-    let extraTokens = Number(userData.extra_tokens || 0);
-    let tokensUsedTotal = Number(userData.tokens_used || 0);
-    
-    if (lastReset !== today) {
-      tokensToday = 0;
-    }
-
-    const newTotal = tokensUsedTotal + tokens;
-    let newTokensToday = tokensToday + tokens;
-    let newExtraTokens = extraTokens;
-
-    // Authoritative client-side Firestore update to ensure user token consumption is immediately recorded
-    try {
-      await updateDoc(userRef, { 
-        tokens_used: increment(tokens),
-        tokens_used_today: newTokensToday,
-        last_token_reset_date: today,
-        tokens_used_total: increment(tokens)
-      });
-    } catch (dbUpdateErr) {
-      console.warn('Notice updating user token doc in Firestore:', dbUpdateErr);
-    }
-
-    // Calculate exact cost with Gemini Flash ($0.75 in / $1.50 out) or Pro ($2.00 in / $12.00 out)
-    const isPro = (operationInfo?.model || '').includes('pro');
-    const inRate = isPro ? 2.00 : 0.75;
-    const outRate = isPro ? 12.00 : 1.50;
-    const cachedRate = isPro ? 0.50 : 0.1875;
-    const costUsd = (promptTokens / 1_000_000 * inRate) + 
-                    (candidatesTokens / 1_000_000 * outRate) + 
-                    (cachedTokens / 1_000_000 * cachedRate);
-    const costEgp = costUsd * 50.0;
-    const costSar = costUsd * 3.75;
-
-    const opLabels: Record<string, string> = {
-      essay_grading: 'تصحيح مقالي بالمعنى',
-      doc_extraction: 'استخراج بنك أسئلة من ملف/مستند',
-      quiz_generation: 'صياغة وتوليد اختبار ذكي',
-      image_ocr: 'معالجة رموز ومعادلات (OCR)',
-      ocr_equation: 'معالجة رموز ومعادلات (OCR)',
-      extract_questions: 'استخراج بنك أسئلة من ملف/مستند',
-      generate_quiz: 'صياغة وتوليد اختبار ذكي',
-      grade_essay: 'تصحيح مقالي بالمعنى',
-      general_generate: 'معالجة ذكاء اصطناعي'
-    };
-
-    const rawOp = operationInfo?.operation || 'general_generate';
-    const logId = `tok_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    const logDoc = {
-      id: logId,
-      timestamp: new Date().toISOString(),
-      user_id: effectiveUid,
-      user_name: userData.name || operationInfo?.userName || auth.currentUser?.displayName || 'المعلم',
-      user_email: userData.email || operationInfo?.userEmail || auth.currentUser?.email || '',
-      operation: rawOp,
-      operation_label: operationInfo?.operationLabel || opLabels[rawOp] || 'استدعاء AI',
-      model: operationInfo?.model || (isPro ? 'gemini-3.1-pro-preview' : 'gemini-3.8-flash'),
-      prompt_tokens: promptTokens,
-      candidates_tokens: candidatesTokens,
-      cached_tokens: cachedTokens,
-      total_tokens: tokens,
-      cost_usd: Number(costUsd.toFixed(6)),
-      cost_egp: Number(costEgp.toFixed(4)),
-      cost_sar: Number(costSar.toFixed(4)),
-      quiz_id: operationInfo?.quizId || '',
-      quiz_title: operationInfo?.quizTitle || '',
-      student_name: operationInfo?.studentName || ''
-    };
-
-    // Save directly into Firestore token_usage_logs collection to guarantee audit trail
-    setDoc(doc(db, 'token_usage_logs', logId), logDoc).catch(err => {
-      console.warn('Notice saving token log to Firestore:', err);
-    });
-
-    // Dispatch real-time event for UI listeners (TokenBillingModal, ProfileModal, Header, Admin)
-    window.dispatchEvent(new CustomEvent('tokens_consumed', {
-      detail: {
-        userId: effectiveUid,
-        tokens,
-        newTotal,
-        newTokensToday,
-        newExtraTokens,
-        log: logDoc
-      }
-    }));
-  } catch (e) {
-    console.warn('Notice in trackTokenUsage:', e);
-  }
+  window.dispatchEvent(new CustomEvent('tokens_consumed', {
+    detail: { userId: effectiveUid, tokens, log: logDoc }
+  }));
 };
 
 export const isScienceSubject = (subjectName?: string | null, planId?: string | null): boolean => {
@@ -2673,95 +2609,7 @@ export default function App() {
             });
 
             // Background real-time token reconciliation for logged-in user
-            (async () => {
-              try {
-                const uId = user.uid;
-                const uEmail = (data.email || user.email || '').toLowerCase().trim();
-                const todayStr = new Date().toISOString().split('T')[0];
-
-                // Fetch user quizzes
-                const userQSnap = await getDocs(query(collection(db, 'quizzes'), where('user_id', '==', uId)));
-                const myQuizzes: any[] = userQSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-                const myQuizIds = myQuizzes.map(q => q.id).filter(Boolean);
-
-                // Fetch user results (both directly by teacher_id/user_id/email, and by quiz_id in chunks)
-                const myResultsMap = new Map<string, any>();
-                try {
-                  const rSnap1 = await getDocs(query(collection(db, 'results'), where('teacher_id', '==', uId)));
-                  rSnap1.docs.forEach(d => myResultsMap.set(d.id, { id: d.id, ...d.data() }));
-                } catch {}
-
-                try {
-                  const rSnap2 = await getDocs(query(collection(db, 'results'), where('user_id', '==', uId)));
-                  rSnap2.docs.forEach(d => myResultsMap.set(d.id, { id: d.id, ...d.data() }));
-                } catch {}
-
-                for (let i = 0; i < myQuizIds.length; i += 10) {
-                  const chunk = myQuizIds.slice(i, i + 10);
-                  try {
-                    const chunkSnap = await getDocs(query(collection(db, 'results'), where('quiz_id', 'in', chunk)));
-                    chunkSnap.docs.forEach(d => myResultsMap.set(d.id, { id: d.id, ...d.data() }));
-                  } catch {}
-                }
-
-                // Fetch user token usage logs
-                const myLogsMap = new Map<string, any>();
-                try {
-                  const lSnap = await getDocs(query(collection(db, 'token_usage_logs'), where('user_id', '==', uId)));
-                  lSnap.docs.forEach(d => myLogsMap.set(d.id, { id: d.id, ...d.data() }));
-                } catch {}
-
-                if (uEmail) {
-                  try {
-                    const lEmailSnap = await getDocs(query(collection(db, 'token_usage_logs'), where('user_email', '==', uEmail)));
-                    lEmailSnap.docs.forEach(d => myLogsMap.set(d.id, { id: d.id, ...d.data() }));
-                  } catch {}
-                }
-
-                const myResultsList = Array.from(myResultsMap.values());
-                const myLogsList = Array.from(myLogsMap.values());
-
-                let cycleStart: string | null = data.subscription_start_date || data.subscription_renewal_date || null;
-                if (!cycleStart && data.subscription_end_date && data.subscription_status === 'active') {
-                  const endMs = new Date(data.subscription_end_date).getTime();
-                  const cycleDays = data.billing_cycle === 'yearly' ? 365 : 30;
-                  cycleStart = new Date(endMs - (cycleDays * 24 * 60 * 60 * 1000)).toISOString();
-                }
-
-                const baseStored = Math.max(0, Number(data.tokens_used || 0));
-                const baseTotal = Math.max(0, Number(data.tokens_used_total || 0), baseStored);
-                const storedToday = (data.last_token_reset_date === todayStr && data.tokens_used_today)
-                  ? Math.max(0, Number(data.tokens_used_today))
-                  : 0;
-
-                const realCycleUsed = calculateTeacherRealTokenUsage(uId, uEmail, myResultsList, myLogsList, 0, cycleStart, myQuizzes, data.name, true);
-                const realLifetime = calculateTeacherRealTokenUsage(uId, uEmail, myResultsList, myLogsList, 0, null, myQuizzes, data.name, true);
-                const realToday = calculateTeacherTodayTokenUsage(uId, uEmail, myResultsList, myLogsList, 0, myQuizzes, data.name);
-
-                const finalUsed = realCycleUsed;
-                const finalTotal = Math.max(realLifetime, realCycleUsed);
-                const finalToday = realToday;
-
-                if (finalUsed !== baseStored || finalToday !== storedToday || finalTotal !== baseTotal) {
-                  await updateDoc(doc(db, 'users', uId), {
-                    tokens_used: finalUsed,
-                    tokens_used_total: finalTotal,
-                    tokens_used_today: finalToday,
-                    last_token_reset_date: todayStr
-                  }).catch(() => {});
-
-                  setUser((prev: any) => ({
-                    ...(prev || {}),
-                    tokens_used: finalUsed,
-                    tokens_used_total: finalTotal,
-                    tokens_used_today: finalToday,
-                    last_token_reset_date: todayStr
-                  }));
-                }
-              } catch (recErr) {
-                console.warn('Notice in user token auto-reconciliation:', recErr);
-              }
-            })();
+            // Token counters are maintained by the server; the client no longer recomputes or overwrites them.
 
             setAuthMode(null);
 
@@ -3170,9 +3018,13 @@ export default function App() {
 
         // Notify Admin via Backend and register in persistent server storage
         try {
+          const notifyIdToken = await userCredential.user.getIdToken().catch(() => null);
           await fetch('/api/admin/notify-registration', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              ...(notifyIdToken ? { 'Authorization': `Bearer ${notifyIdToken}` } : {})
+            },
             body: JSON.stringify({
               uid: userCredential.user.uid,
               name: authName,
@@ -4958,9 +4810,13 @@ export default function App() {
       };
 
       await setDoc(doc(db, 'users', newUid), newSubscriber, { merge: true });
+      const adminIdToken = auth.currentUser ? await auth.currentUser.getIdToken().catch(() => null) : null;
       fetch('/api/admin/notify-registration', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(adminIdToken ? { 'Authorization': `Bearer ${adminIdToken}` } : {})
+        },
         body: JSON.stringify({
           uid: newUid,
           name: newSubscriber.name,
@@ -5429,79 +5285,7 @@ export default function App() {
       const examResults = Array.from(resultsMap.values());
       const todayStr = now.toISOString().split('T')[0];
 
-      deduplicatedUsers.forEach(u => {
-        const uId = u.id || u.uid;
-        const uEmail = (u.email || '').toLowerCase().trim();
-        const isHany = uEmail === 'hanytharwatabushouka@gmail.com';
-
-        let cycleStart: string | null = u.subscription_start_date || u.subscription_renewal_date || null;
-        let subscriptionUpdates: any = {};
-
-        if (isHany) {
-          // Exactly 4 days ago renewal -> 26 days remaining in 30-day monthly plan
-          const renewalDate4DaysAgo = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString();
-          const endSubDate26Days = new Date(Date.now() + 26 * 24 * 60 * 60 * 1000).toISOString();
-          cycleStart = renewalDate4DaysAgo;
-          u.subscription_renewal_date = renewalDate4DaysAgo;
-          u.subscription_start_date = renewalDate4DaysAgo;
-          u.subscription_end_date = endSubDate26Days;
-          u.billing_cycle = 'monthly';
-          u.subscription_status = 'active';
-          u.hasAccess = true;
-          subscriptionUpdates = {
-            subscription_renewal_date: renewalDate4DaysAgo,
-            subscription_start_date: renewalDate4DaysAgo,
-            subscription_end_date: endSubDate26Days,
-            billing_cycle: 'monthly',
-            subscription_status: 'active',
-            hasAccess: true
-          };
-        } else if (!cycleStart && u.subscription_end_date && u.subscription_status === 'active') {
-          const endMs = new Date(u.subscription_end_date).getTime();
-          const cycleDays = u.billing_cycle === 'yearly' ? 365 : 30;
-          cycleStart = new Date(endMs - (cycleDays * 24 * 60 * 60 * 1000)).toISOString();
-        }
-
-        const storedUsed = (u.tokens_used !== undefined && u.tokens_used !== null && !isNaN(Number(u.tokens_used)))
-          ? Math.max(0, Number(u.tokens_used))
-          : 0;
-        const storedTotal = (u.tokens_used_total !== undefined && u.tokens_used_total !== null && !isNaN(Number(u.tokens_used_total)))
-          ? Math.max(0, Number(u.tokens_used_total))
-          : storedUsed;
-        const storedToday = (u.last_token_reset_date === todayStr && u.tokens_used_today !== undefined && u.tokens_used_today !== null)
-          ? Math.max(0, Number(u.tokens_used_today))
-          : 0;
-
-        // Protect against the legacy corrupted artifact (>= 4,000,000 without a custom million-token plan)
-        const isLegacyArtifact = storedUsed >= 4000000 && !String(u.subscription_type || '').includes('million');
-        const baselineUsed = isLegacyArtifact ? 0 : storedUsed;
-        const baselineTotal = isLegacyArtifact ? 0 : storedTotal;
-
-        const realCycleUsed = calculateTeacherRealTokenUsage(uId, u.email, examResults, tokenLogs, baselineUsed, cycleStart, allQuizzesList, u.name, isHany);
-        const realLifetime = calculateTeacherRealTokenUsage(uId, u.email, examResults, tokenLogs, baselineTotal, null, allQuizzesList, u.name, isHany);
-        const realToday = calculateTeacherTodayTokenUsage(uId, u.email, examResults, tokenLogs, storedToday, allQuizzesList, u.name);
-
-        // For Hany, set to exact audited cycle usage; for others, trust maximum between baseline and real
-        const finalUsed = isHany ? realCycleUsed : Math.max(baselineUsed, realCycleUsed);
-        const finalTotal = Math.max(baselineTotal, realLifetime, finalUsed);
-        const finalToday = Math.max(storedToday, realToday);
-
-        u.tokens_used = finalUsed;
-        u.tokens_used_total = finalTotal;
-        u.tokens_used_today = finalToday;
-
-        // Persist to Firestore if changed or if it's Hany's account needing sync
-        if (uId && (finalUsed !== storedUsed || finalTotal !== storedTotal || finalToday !== storedToday || isHany || (storedUsed >= 4000000 && isLegacyArtifact))) {
-          setDoc(doc(db, 'users', uId), {
-            tokens_used: finalUsed,
-            tokens_used_total: finalTotal,
-            tokens_used_today: finalToday,
-            last_token_reset_date: todayStr,
-            last_token_reconciliation_date: new Date().toISOString(),
-            ...subscriptionUpdates
-          }, { merge: true }).catch(() => {});
-        }
-      });
+      // Usage counters come straight from Firestore (written by the server only); no client-side recomputation.
 
       // Sort with newest on top
       deduplicatedUsers.sort((a, b) => {
@@ -8988,8 +8772,8 @@ ${totalAddedOrRepaired > 0
                 });
                 if (res.ok) {
                   const aiData = await res.json();
-                  const pTokens = Number(aiData.usageMetadata?.promptTokenCount || 400);
-                  const cTokens = Number(aiData.usageMetadata?.candidatesTokenCount || 100);
+                  const pTokens = Number(aiData.usageMetadata?.promptTokenCount || 0);
+                  const cTokens = Number(aiData.usageMetadata?.candidatesTokenCount || 0);
                   const isQuizPro = teacherIsPro || (aiData.model && aiData.model.includes('pro'));
                   const billableQTokens = calculateTotalBillableTokens(pTokens, cTokens, isQuizPro);
                   totalAiTokensInQuiz += billableQTokens;
@@ -9012,7 +8796,8 @@ ${totalAddedOrRepaired > 0
                     correctExample: q.modelAnswer || aiData.correctExample || (isEnglishQ ? 'Official model answer' : 'الإجابة النموذجية'),
                     studentAnswer: studentAns,
                     steps: Array.isArray(aiData.steps) ? aiData.steps : [],
-                    isCorrect: earned >= (qPoints * 0.75)
+                    isCorrect: earned >= (qPoints * 0.75),
+                    needsReview: Boolean(aiData.needs_review)
                   };
                 } else {
                   const safeCheck = checkEssayExactOrEquivalent(studentAns, q.modelAnswer, qPoints, isEnglishQ, q.keywords);
@@ -9038,6 +8823,7 @@ ${totalAddedOrRepaired > 0
                   correctExample: q.modelAnswer || (isEnglishQ ? 'Official model answer' : 'الإجابة النموذجية'),
                   studentAnswer: studentAns,
                   isCorrect: safeCheck.matched,
+                  needsReview: !safeCheck.matched,
                   steps: safeCheck.steps || []
                 };
               }
@@ -16289,9 +16075,9 @@ ${totalAddedOrRepaired > 0
       )}
 
       {showShareModal && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between p-6 border-b border-slate-100">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-md max-h-[calc(100dvh-1.5rem)] overflow-y-auto overflow-x-hidden animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-slate-100">
               <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                 <Share2 size={24} className="text-indigo-600" />
                 مشاركة الاختبار
@@ -16304,7 +16090,7 @@ ${totalAddedOrRepaired > 0
               </button>
             </div>
             
-            <div className="p-6 space-y-8">
+            <div className="p-4 sm:p-6 space-y-6 sm:space-y-8">
               <div className="flex flex-col items-center justify-center space-y-4">
                 <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
                   <QRCodeCanvas
@@ -16362,7 +16148,7 @@ ${totalAddedOrRepaired > 0
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-slate-700">كود الاختبار للطلاب:</label>
                   <div className="flex gap-2">
-                    <div className="flex-1 p-3 rounded-xl border-2 border-dashed border-indigo-200 bg-indigo-50 text-indigo-700 font-bold text-center text-lg tracking-widest select-all">
+                    <div className="flex-1 p-3 rounded-xl border-2 border-dashed border-indigo-200 bg-indigo-50 text-indigo-700 font-bold text-center text-sm sm:text-lg tracking-wider break-all select-all">
                       {quiz.id}
                     </div>
                   </div>
@@ -16375,7 +16161,7 @@ ${totalAddedOrRepaired > 0
                       type="text"
                       readOnly
                       value={shareUrl}
-                      className="flex-1 p-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 text-left text-sm focus:outline-none"
+                      className="flex-1 min-w-0 p-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 text-left text-sm focus:outline-none"
                       dir="ltr"
                     />
                     <button
@@ -16392,7 +16178,7 @@ ${totalAddedOrRepaired > 0
 
                 {/* Expiration Date Control inside Share Modal */}
                 <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <CalendarDays size={18} className="text-indigo-600 shrink-0" />
                       <span className="text-sm font-bold text-slate-800">تاريخ انتهاء صلاحية الرابط:</span>
@@ -16408,7 +16194,7 @@ ${totalAddedOrRepaired > 0
                     ) : null}
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                     <input
                       type="datetime-local"
                       value={quiz.expires_at ? toDateTimeLocalString(new Date(quiz.expires_at)) : ''}
@@ -16416,7 +16202,7 @@ ${totalAddedOrRepaired > 0
                         const val = e.target.value;
                         handleUpdateShareExpiration(val ? new Date(val).toISOString() : null);
                       }}
-                      className="flex-1 p-2.5 rounded-xl border border-slate-200 focus:border-indigo-600 outline-none text-xs bg-white text-slate-800"
+                      className="w-full sm:flex-1 min-w-0 p-2.5 rounded-xl border border-slate-200 focus:border-indigo-600 outline-none text-xs bg-white text-slate-800"
                     />
                     <select
                       value={quiz.expires_at ? 'custom' : 'none'}
@@ -16435,7 +16221,7 @@ ${totalAddedOrRepaired > 0
                           handleUpdateShareExpiration(d.toISOString());
                         }
                       }}
-                      className="p-2.5 rounded-xl border border-slate-200 focus:border-indigo-600 outline-none text-xs bg-white text-slate-700 font-medium"
+                      className="w-full sm:w-auto p-2.5 rounded-xl border border-slate-200 focus:border-indigo-600 outline-none text-xs bg-white text-slate-700 font-medium"
                     >
                       <option value="none">بدون انتهاء (دائماً)</option>
                       <option value="24h">24 ساعة</option>

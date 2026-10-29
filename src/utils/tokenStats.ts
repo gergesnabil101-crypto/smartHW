@@ -29,7 +29,7 @@ export interface UserTokenStats {
 }
 
 export const FLASH_OUTPUT_TOKEN_MULTIPLIER = 5;
-export const PRO_OUTPUT_TOKEN_MULTIPLIER = 6;
+export const PRO_OUTPUT_TOKEN_MULTIPLIER = 7;
 export const OUTPUT_TOKEN_MULTIPLIER = 5;
 
 export const getOutputMultiplier = (modelOrIsPro?: string | boolean): number => {
@@ -44,7 +44,7 @@ export const getOutputMultiplier = (modelOrIsPro?: string | boolean): number => 
 /**
  * Calculates total billable tokens applying the multiplier on output tokens:
  * - 5x for Gemini Flash (200 EGP / 1M)
- * - 6x for Gemini Pro (250 EGP / 1M)
+ * - 7x for Gemini Pro (250 EGP / 1M)
  */
 export const calculateTotalBillableTokens = (
   promptTokens: number = 0,
@@ -593,7 +593,7 @@ export const calculateTeacherRealTokenUsage = (
       if (log.id) seenLogIds.add(log.id);
       recentLogsWindow.push({ time: logTime, p, c, op: normOp, quizKey });
 
-      // Recalculate with strict model multiplier: 5x for Flash, 6x for Pro
+      // Recalculate with strict model multiplier: 5x for Flash, 7x for Pro
       const isLogPro = String(log.model || '').toLowerCase().includes('pro');
       const billable = calculateTotalBillableTokens(p, c, isLogPro);
       const total = (p > 0 || c > 0) ? billable : Math.max(0, Number(log.total_tokens || 0));
