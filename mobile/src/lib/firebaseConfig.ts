@@ -1,0 +1,14 @@
+/**
+ * Firebase client config — public values (same ones shipped in the web bundle).
+ * These are identifiers, not secrets; security is enforced by Firestore rules,
+ * Firebase Auth, and server-side token verification.
+ */
+export const firebaseConfig = {
+  projectId: 'gen-lang-client-0552360485',
+  appId: '1:609470896445:web:e7ea401f99ad040e460d54',
+  apiKey: 'AIzaSyAb63N0TnxOXHHRCQ7h1gV5NfUJ2zoHGYk',
+  authDomain: 'gen-lang-client-0552360485.firebaseapp.com',
+  firestoreDatabaseId: 'ai-studio-3e658ca0-5c16-45ce-bb53-8aced7836d45',
+  storageBucket: 'gen-lang-client-0552360485.firebasestorage.app',
+  messagingSenderId: '609470896445',
+};

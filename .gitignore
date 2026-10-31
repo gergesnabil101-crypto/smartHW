@@ -13,3 +13,13 @@ coverage/
 *.db.backup.*
 *.sqlite
 .ENV.tsx
+
+# Mobile / Expo
+mobile/.expo/
+mobile/dist/
+mobile/web-build/
+*.jks
+*.keystore
+google-play-service-account.json
+mobile/android/app/debug/
+mobile/android/app/release/
