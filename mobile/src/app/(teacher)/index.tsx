@@ -1,14 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Screen } from '../../src/components/Screen';
-import { Card } from '../../src/components/Card';
-import { Button } from '../../src/components/Button';
-import { Input } from '../../src/components/Input';
-import { Loading, EmptyState, ErrorState } from '../../src/components/Feedback';
-import { listMyQuizzes, listFolders, createFolder, deleteQuiz, deleteFolder } from '../../src/lib/services';
-import type { Quiz, Folder } from '../../src/types';
-import { colors, radius, typography } from '../../src/theme';
+import { Screen } from '../../components/Screen';
+import { Card } from '../../components/Card';
+import { Button } from '../../components/Button';
+import { Input } from '../../components/Input';
+import { Loading, EmptyState, ErrorState } from '../../components/Feedback';
+import { listMyQuizzes, listFolders, createFolder, deleteQuiz, deleteFolder } from '../../lib/services';
+import type { Quiz, Folder } from '../../types';
+import { colors, radius, typography } from '../../theme';
 
 export default function DashboardScreen() {
   const router = useRouter();

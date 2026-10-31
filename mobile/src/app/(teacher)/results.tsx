@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Screen } from '../../src/components/Screen';
-import { Card } from '../../src/components/Card';
-import { Input } from '../../src/components/Input';
-import { Loading, EmptyState, ErrorState } from '../../src/components/Feedback';
-import { listTeacherResults } from '../../src/lib/services';
-import type { StudentResult } from '../../src/types';
-import { colors, radius, typography } from '../../src/theme';
+import { Screen } from '../../components/Screen';
+import { Card } from '../../components/Card';
+import { Input } from '../../components/Input';
+import { Loading, EmptyState, ErrorState } from '../../components/Feedback';
+import { listTeacherResults } from '../../lib/services';
+import type { StudentResult } from '../../types';
+import { colors, radius, typography } from '../../theme';
 
 export default function ResultsScreen() {
   const router = useRouter();

@@ -1,10 +1,10 @@
 import React from 'react';
 import { Tabs, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../src/store/AuthContext';
-import { Loading } from '../../src/components/Feedback';
-import { Screen } from '../../src/components/Screen';
-import { colors } from '../../src/theme';
+import { useAuth } from '../../store/AuthContext';
+import { Loading } from '../../components/Feedback';
+import { Screen } from '../../components/Screen';
+import { colors } from '../../theme';
 
 export default function TeacherLayout() {
   const { initialized, user } = useAuth();

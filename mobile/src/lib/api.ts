@@ -1,4 +1,5 @@
 import { auth } from './firebase';
+import { getAppCheckToken } from './appCheck';
 import { API_BASE_URL, assertApiConfigured } from '../config';
 
 export class ApiError extends Error {
@@ -43,6 +44,9 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
     if (token) headers['Authorization'] = `Bearer ${token}`;
   }
   if (idempotent) headers['Idempotency-Key'] = newIdempotencyKey();
+
+  const appCheckToken = await getAppCheckToken().catch(() => null);
+  if (appCheckToken) headers['X-Firebase-AppCheck'] = appCheckToken;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);

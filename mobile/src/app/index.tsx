@@ -1,8 +1,8 @@
 import React, { useEffect } from 'react';
 import { Redirect, useLocalSearchParams } from 'expo-router';
-import { useAuth } from '../src/store/AuthContext';
-import { Loading } from '../src/components/Feedback';
-import { Screen } from '../src/components/Screen';
+import { useAuth } from '../store/AuthContext';
+import { Loading } from '../components/Feedback';
+import { Screen } from '../components/Screen';
 
 /** Entry point: route to quiz-taking (deep link), teacher area, or login. */
 export default function Index() {

@@ -2,8 +2,8 @@ import React, { useEffect } from 'react';
 import { I18nManager } from 'react-native';
 import { Stack } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { AuthProvider } from '../src/store/AuthContext';
-import { colors } from '../src/theme';
+import { AuthProvider } from '../store/AuthContext';
+import { colors } from '../theme';
 
 // Force RTL layout for the Arabic UI. Requires one app restart to apply;
 // it is already enabled at the OS level via app.json supportsRTL.

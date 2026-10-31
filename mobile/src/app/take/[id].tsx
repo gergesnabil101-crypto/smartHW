@@ -1,16 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Screen } from '../../src/components/Screen';
-import { Input } from '../../src/components/Input';
-import { Button } from '../../src/components/Button';
-import { Card } from '../../src/components/Card';
-import { Loading, ErrorState } from '../../src/components/Feedback';
-import { QuestionCard } from '../../src/components/QuestionCard';
-import { checkAttempts, getQuizPublic, startAttempt, submitQuiz } from '../../src/lib/services';
-import { LIMITS } from '../../src/config';
-import type { Quiz } from '../../src/types';
-import { colors, radius, typography } from '../../src/theme';
+import { Screen } from '../../components/Screen';
+import { Input } from '../../components/Input';
+import { Button } from '../../components/Button';
+import { Card } from '../../components/Card';
+import { Loading, ErrorState } from '../../components/Feedback';
+import { QuestionCard } from '../../components/QuestionCard';
+import { checkAttempts, getQuizPublic, startAttempt, submitQuiz } from '../../lib/services';
+import { LIMITS } from '../../config';
+import type { Quiz } from '../../types';
+import { colors, radius, typography } from '../../theme';
 
 type Phase = 'intro' | 'quiz' | 'done';
 
@@ -44,6 +44,33 @@ export default function TakeQuizScreen() {
   }, [id]);
 
   const timeLimitMin = useMemo(() => (quiz?.time_limit ? Number(quiz.time_limit) : null), [quiz]);
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
+
+  // Countdown timer — auto-submits when the quiz time limit expires
+  useEffect(() => {
+    if (phase !== 'quiz' || !timeLimitMin) return;
+    setSecondsLeft(timeLimitMin * 60);
+    const iv = setInterval(() => {
+      setSecondsLeft((s) => {
+        if (s === null) return s;
+        if (s <= 1) {
+          clearInterval(iv);
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(iv);
+  }, [phase, timeLimitMin]);
+
+  const submittedRef = useRef(false);
+  useEffect(() => {
+    if (secondsLeft === 0 && !submittedRef.current) {
+      submittedRef.current = true;
+      submit();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [secondsLeft]);
 
   const start = async () => {
     setFormError('');
@@ -82,9 +109,9 @@ export default function TakeQuizScreen() {
   };
 
   const submit = async () => {
-    if (!quiz) return;
+    if (!quiz || submitting) return;
     const unanswered = quiz.questions.filter((q) => answers[q.id] === undefined || answers[q.id] === '').length;
-    if (unanswered > 0) {
+    if (unanswered > 0 && secondsLeft !== 0) {
       const proceed = await new Promise<boolean>((resolve) => {
         Alert.alert('أسئلة بدون إجابة', `لديك ${unanswered} سؤال بدون إجابة. هل تريد التسليم؟`, [
           { text: 'رجوع', style: 'cancel', onPress: () => resolve(false) },
@@ -174,6 +201,11 @@ export default function TakeQuizScreen() {
   return (
     <Screen>
       <Text style={[typography.h2, styles.center]}>{quiz.title}</Text>
+      {secondsLeft !== null ? (
+        <Text style={[styles.timer, secondsLeft <= 60 && styles.timerUrgent]}>
+          ⏱ {Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, '0')}
+        </Text>
+      ) : null}
       {quiz.questions.map((q, i) => (
         <QuestionCard
           key={q.id}
@@ -194,6 +226,8 @@ const styles = StyleSheet.create({
   submit: { marginVertical: 16 },
   doneWrap: { alignItems: 'center', marginTop: 60, gap: 12 },
   doneEmoji: { fontSize: 56 },
+  timer: { textAlign: 'center', fontSize: 18, fontWeight: '800', color: colors.textSecondary, marginTop: 8 },
+  timerUrgent: { color: colors.danger },
   scoreCard: { alignItems: 'center', padding: 24, alignSelf: 'stretch' },
   scoreText: { fontSize: 40, fontWeight: '800', color: colors.primary },
 });

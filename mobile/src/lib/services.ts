@@ -58,7 +58,15 @@ export const submitQuiz = (
     attemptToken?: string;
     time_spent_seconds?: number;
   }
-) => api.post<{ success: boolean; resultId?: string; score?: number; total?: number; error?: string }>(
+) => api.post<{
+  success: boolean;
+  id?: string;
+  score?: number;
+  total?: number;
+  feedback?: Record<string, unknown>;
+  is_graded?: boolean;
+  error?: string;
+}>(
   `/api/quizzes/${encodeURIComponent(quizId)}/submit`,
   data,
   { auth: false, idempotent: true }

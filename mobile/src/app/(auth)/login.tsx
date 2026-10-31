@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Link, useRouter } from 'expo-router';
-import { Screen } from '../../src/components/Screen';
-import { Input } from '../../src/components/Input';
-import { Button } from '../../src/components/Button';
-import { useAuth } from '../../src/store/AuthContext';
-import { colors, typography } from '../../src/theme';
+import { Screen } from '../../components/Screen';
+import { Input } from '../../components/Input';
+import { Button } from '../../components/Button';
+import { useAuth } from '../../store/AuthContext';
+import { colors, typography } from '../../theme';
 
 function friendlyAuthError(code?: string): string {
   switch (code) {
@@ -30,6 +30,19 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [joinCode, setJoinCode] = useState('');
+
+  const joinQuiz = () => {
+    const raw = joinCode.trim();
+    if (!raw) return;
+    // Accept a full URL (…/?id=XYZ) or a bare quiz id
+    const match = raw.match(/[?&]id=([A-Za-z0-9_-]+)/) || raw.match(/^([A-Za-z0-9_-]{3,})$/);
+    if (!match) {
+      setError('الرابط أو الكود غير صالح.');
+      return;
+    }
+    router.push(`/take/${match[1]}`);
+  };
 
   const submit = async () => {
     setError('');
@@ -78,6 +91,17 @@ export default function LoginScreen() {
         <Link href="/(auth)/forgot-password" style={styles.link}>نسيت كلمة المرور؟</Link>
         <Link href="/(auth)/register" style={styles.link}>إنشاء حساب معلم جديد</Link>
       </View>
+
+      <View style={styles.studentBox}>
+        <Text style={typography.label}>طالب؟ الصق رابط أو كود الاختبار</Text>
+        <Input
+          value={joinCode}
+          onChangeText={setJoinCode}
+          placeholder="مثال: https://app.com/?id=abc أو abc"
+          autoCapitalize="none"
+        />
+        <Button title="دخول الاختبار" variant="secondary" onPress={joinQuiz} />
+      </View>
     </Screen>
   );
 }
@@ -87,4 +111,5 @@ const styles = StyleSheet.create({
   error: { color: colors.danger, textAlign: 'right', writingDirection: 'rtl', marginBottom: 10 },
   links: { alignItems: 'center', gap: 14, marginTop: 24 },
   link: { color: colors.primary, fontSize: 15, fontWeight: '600' },
+  studentBox: { marginTop: 40, paddingTop: 20, borderTopWidth: 1, borderTopColor: colors.border },
 });

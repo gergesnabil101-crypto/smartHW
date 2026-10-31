@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text } from 'react-native';
 import { Link, useRouter } from 'expo-router';
-import { Screen } from '../../src/components/Screen';
-import { Input } from '../../src/components/Input';
-import { Button } from '../../src/components/Button';
-import { useAuth } from '../../src/store/AuthContext';
-import { colors, typography } from '../../src/theme';
+import { Screen } from '../../components/Screen';
+import { Input } from '../../components/Input';
+import { Button } from '../../components/Button';
+import { useAuth } from '../../store/AuthContext';
+import { colors, typography } from '../../theme';
 
 function validate(email: string, password: string, name: string): string {
   if (!name.trim()) return 'أدخل الاسم الكامل.';

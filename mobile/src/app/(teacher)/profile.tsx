@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Screen } from '../../src/components/Screen';
-import { Card } from '../../src/components/Card';
-import { Input } from '../../src/components/Input';
-import { Button } from '../../src/components/Button';
-import { useAuth } from '../../src/store/AuthContext';
-import { updateProfile } from '../../src/lib/services';
-import { colors, typography } from '../../src/theme';
+import { Screen } from '../../components/Screen';
+import { Card } from '../../components/Card';
+import { Input } from '../../components/Input';
+import { Button } from '../../components/Button';
+import { useAuth } from '../../store/AuthContext';
+import { updateProfile } from '../../lib/services';
+import { colors, typography } from '../../theme';
 
 const PLAN_LABELS: Record<string, string> = {
   '200': 'الباقة الأساسية — مواد نظرية',

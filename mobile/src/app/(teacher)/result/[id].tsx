@@ -1,16 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { Screen } from '../../../src/components/Screen';
-import { Card } from '../../../src/components/Card';
-import { Input } from '../../../src/components/Input';
-import { Button } from '../../../src/components/Button';
-import { Loading, ErrorState } from '../../../src/components/Feedback';
-import { MathText } from '../../../src/components/MathText';
-import { api } from '../../../src/lib/api';
-import { gradeEssay, gradeResult, listQuizResults, listTeacherResults, reviewResult } from '../../../src/lib/services';
-import type { Quiz, StudentResult } from '../../../src/types';
-import { colors, radius, typography } from '../../../src/theme';
+import { Screen } from '../../../components/Screen';
+import { Card } from '../../../components/Card';
+import { Input } from '../../../components/Input';
+import { Button } from '../../../components/Button';
+import { Loading, ErrorState } from '../../../components/Feedback';
+import { MathText } from '../../../components/MathText';
+import { api } from '../../../lib/api';
+import { gradeEssay, gradeResult, listQuizResults, listTeacherResults, reviewResult } from '../../../lib/services';
+import type { Quiz, StudentResult } from '../../../types';
+import { colors, radius, typography } from '../../../theme';
 
 interface QuestionFeedback {
   score?: number;
