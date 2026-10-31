@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+/* Hide Google Translate UI */
+.skiptranslate iframe,
+.goog-te-banner-frame {
+  display: none !important;
+}
+
+body {
+  top: 0px !important;
+}
+
+#google_translate_element {
+  display: none !important;
+}
+
+/* Ensure RTL/LTR layout flips correctly on html[lang="en"] if handled by standard Tailwind rtl, but Google Translate doesn't change the dir attribute by default. We will add a small script to change dir="ltr" if cookie says English. */

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>مصحح الواجبات الذكي</title>
+    <meta name="description" content="تطبيق لمساعدة المعلمين في إنشاء وتصحيح أسئلة الاختبارات والواجبات وعرض حلول الطلاب بالتفصيل." />
+    <meta property="og:title" content="مصحح الواجبات الذكي" />
+    <meta property="og:description" content="تطبيق لمساعدة المعلمين في إنشاء وتصحيح أسئلة الاختبارات والواجبات وعرض حلول الطلاب بالتفصيل." />
+    
+    <script>
+      function getCookie(name) {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+        return null;
+      }
+      
+      // Auto-set direction based on translation cookie
+      const googtrans = getCookie('googtrans');
+      if (googtrans && googtrans.endsWith('/en')) {
+        document.documentElement.setAttribute('dir', 'ltr');
+        document.documentElement.setAttribute('lang', 'en');
+      } else {
+        document.documentElement.setAttribute('dir', 'rtl');
+        document.documentElement.setAttribute('lang', 'ar');
+      }
+    </script>
+  </head>
+  <body>
+    <div id="google_translate_element"></div>
+    <script type="text/javascript">
+      function googleTranslateElementInit() {
+        new google.translate.TranslateElement({pageLanguage: 'ar', includedLanguages: 'ar,en', autoDisplay: false}, 'google_translate_element');
+      }
+    </script>
+    <script type="text/javascript" src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

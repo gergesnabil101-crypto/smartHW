@@ -1,0 +1,219 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the application",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "password_hash": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "avatar_data": { "type": "string" },
+        "subject": { "type": "string" },
+        "grade_level": { "type": "string" },
+        "curriculum": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "subscription_end_date": { "type": "string", "format": "date-time" },
+        "subscription_type": { "type": "string" },
+        "subscription_status": { "type": "string" },
+        "billing_cycle": { "type": "string" },
+        "tokens_used": { "type": "number" },
+        "tokens_used_today": { "type": "number" },
+        "last_token_reset_date": { "type": "string" },
+        "centers": { "type": "array" },
+        "hasAccess": { "type": "boolean" },
+        "is_suspended": { "type": "boolean" },
+        "role": { "type": "string", "enum": ["admin", "user"] }
+      },
+      "required": ["email", "name"]
+    },
+    "Folder": {
+      "title": "Folder",
+      "description": "A folder to organize quizzes",
+      "type": "object",
+      "properties": {
+        "user_id": { "type": "string" },
+        "name": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["user_id", "name"]
+    },
+    "Quiz": {
+      "title": "Quiz",
+      "description": "A quiz created by a user",
+      "type": "object",
+      "properties": {
+        "user_id": { "type": "string" },
+        "folder_id": { "type": "string" },
+        "title": { "type": "string" },
+        "data": { "type": "string" },
+        "grade_level": { "type": "string" },
+        "subject": { "type": "string" },
+        "ai_model": { "type": "string" },
+        "ai_tokens_used": { "type": "number" },
+        "time_limit": { "type": "number" },
+        "require_student_code": { "type": "boolean" },
+        "student_codes": { "type": "array" },
+        "expires_at": { "type": "string", "format": "date-time" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["user_id", "title", "data"]
+    },
+    "Result": {
+      "title": "Result",
+      "description": "A student's result for a quiz",
+      "type": "object",
+      "properties": {
+        "quiz_id": { "type": "string" },
+        "student_name": { "type": "string" },
+        "student_code": { "type": "string" },
+        "center_name": { "type": "string" },
+        "parent_phone": { "type": "string" },
+        "score": { "type": "number" },
+        "total": { "type": "number" },
+        "reviewed_and_sent": { "type": "boolean" },
+        "reviewed_and_sent_at": { "type": "string", "format": "date-time" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["quiz_id", "student_name", "score", "total"]
+    },
+    "SubscriptionRequest": {
+      "title": "SubscriptionRequest",
+      "description": "A request for a subscription",
+      "type": "object",
+      "properties": {
+        "user_id": { "type": "string" },
+        "user_name": { "type": "string" },
+        "user_email": { "type": "string" },
+        "user_phone": { "type": "string" },
+        "user_subject": { "type": "string" },
+        "plan": { "type": "string" },
+        "billing_cycle": { "type": "string" },
+        "screenshot_data": { "type": "string" },
+        "custom_details": { "type": "string" },
+        "tokens_millions": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["user_id", "plan", "status"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "A broadcast notification sent to students",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "targetType": { "type": "string", "enum": ["all", "grade", "subject", "teacher"] },
+        "targetValue": { "type": "string" },
+        "sender_email": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "message", "created_at"]
+    },
+    "PublicProfile": {
+      "title": "PublicProfile",
+      "description": "Publicly visible teacher profile containing only non-sensitive identity info",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "subject": { "type": "string" },
+        "grade_level": { "type": "string" },
+        "curriculum": { "type": "string" },
+        "avatar_data": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name"]
+    },
+    "Student": {
+      "title": "Student",
+      "description": "A consolidated student profile mapping across teacher groups",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "parent_phone": { "type": "string" },
+        "center_name": { "type": "string" },
+        "grade_level": { "type": "string" },
+        "subject": { "type": "string" },
+        "teacher_name": { "type": "string" },
+        "teacher_id": { "type": "string" },
+        "exams_taken": { "type": "number" },
+        "last_score": { "type": "number" },
+        "total_score": { "type": "number" },
+        "last_date": { "type": "string", "format": "date-time" },
+        "code": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "TokenUsageLog": {
+      "title": "TokenUsageLog",
+      "description": "Log of token usage for an AI operation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "user_id": { "type": "string" },
+        "user_name": { "type": "string" },
+        "user_email": { "type": "string" },
+        "operation": { "type": "string" },
+        "operation_label": { "type": "string" },
+        "model": { "type": "string" },
+        "prompt_tokens": { "type": "number" },
+        "candidates_tokens": { "type": "number" },
+        "cached_tokens": { "type": "number" },
+        "total_tokens": { "type": "number" },
+        "cost_usd": { "type": "number" },
+        "cost_egp": { "type": "number" },
+        "cost_sar": { "type": "number" },
+        "quiz_id": { "type": "string" },
+        "quiz_title": { "type": "string" },
+        "student_name": { "type": "string" }
+      },
+      "required": ["id", "timestamp", "user_id", "operation", "prompt_tokens", "candidates_tokens", "total_tokens"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles"
+    },
+    "public_profiles/{userId}": {
+      "schema": { "$ref": "#/entities/PublicProfile" },
+      "description": "Public teacher profiles for student quiz screens"
+    },
+    "folders/{folderId}": {
+      "schema": { "$ref": "#/entities/Folder" },
+      "description": "Folders for organizing quizzes"
+    },
+    "quizzes/{quizId}": {
+      "schema": { "$ref": "#/entities/Quiz" },
+      "description": "Quizzes containing question master keys (private to author and admin; sanitized via backend API for students)"
+    },
+    "results/{resultId}": {
+      "schema": { "$ref": "#/entities/Result" },
+      "description": "Student results for quizzes"
+    },
+    "subscription_requests/{requestId}": {
+      "schema": { "$ref": "#/entities/SubscriptionRequest" },
+      "description": "Subscription requests"
+    },
+    "notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/Notification" },
+      "description": "Broadcast notifications for students"
+    },
+    "students/{studentId}": {
+      "schema": { "$ref": "#/entities/Student" },
+      "description": "Unified student profiles for tracking across classes"
+    },
+    "token_usage_logs/{logId}": {
+      "schema": { "$ref": "#/entities/TokenUsageLog" },
+      "description": "Granular token usage events and actual billing records"
+    }
+  }
+}
