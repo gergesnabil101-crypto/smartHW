@@ -1,0 +1,13 @@
+node_modules
+mobile/node_modules
+mobile/.expo
+dist
+.git
+.env
+.env.*
+!.env.example
+*.log
+app.db
+*.sqlite
+sqlite_backup_archive.json
+mobile/dist-test

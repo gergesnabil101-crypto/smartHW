@@ -7,7 +7,7 @@ import crypto from 'crypto';
 import Stripe from 'stripe';
 import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 import nodemailer from 'nodemailer';
-import { initializeApp, getApps } from 'firebase-admin/app';
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
@@ -25,10 +25,28 @@ try {
 }
 
 // Initialize Firebase Admin SDK
+// Supports three credential sources (in priority order):
+//  1. GOOGLE_APPLICATION_CREDENTIALS_JSON — service-account JSON inline (Render/Railway/etc.)
+//  2. Application Default Credentials (gcloud / Cloud Run service account)
+//  3. Plain projectId init (falls back to ADC lookup at request time)
 if (getApps().length === 0) {
-  initializeApp({
-    projectId: firebaseConfig.projectId || process.env.FIREBASE_PROJECT_ID || 'gen-lang-client-0552360485',
-  });
+  const inlineSaJson = (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON || '').trim();
+  if (inlineSaJson) {
+    try {
+      initializeApp({
+        credential: cert(JSON.parse(inlineSaJson)),
+        projectId: firebaseConfig.projectId || process.env.FIREBASE_PROJECT_ID || 'gen-lang-client-0552360485',
+      });
+      console.log('Firebase Admin initialized with inline service-account credentials');
+    } catch (credErr) {
+      console.error('GOOGLE_APPLICATION_CREDENTIALS_JSON is set but invalid:', credErr);
+      throw credErr;
+    }
+  } else {
+    initializeApp({
+      projectId: firebaseConfig.projectId || process.env.FIREBASE_PROJECT_ID || 'gen-lang-client-0552360485',
+    });
+  }
 }
 
 const defaultAdminApp = getApps()[0];
