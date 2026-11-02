@@ -32,21 +32,21 @@ export default function TeacherLayout() {
         name="index"
         options={{
           title: 'اختباراتي',
-          tabBarIcon: ({ color, size }) => <Ionicons name="library" color={color} size={size} />,
+          tabBarIcon: ({ color, size }: any) => <Ionicons name="library" color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="results"
         options={{
           title: 'النتائج',
-          tabBarIcon: ({ color, size }) => <Ionicons name="stats-chart" color={color} size={size} />,
+          tabBarIcon: ({ color, size }: any) => <Ionicons name="stats-chart" color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: 'حسابي',
-          tabBarIcon: ({ color, size }) => <Ionicons name="person" color={color} size={size} />,
+          tabBarIcon: ({ color, size }: any) => <Ionicons name="person" color={color} size={size} />,
         }}
       />
       {/* Detail screens live inside the tab layout but are hidden from the bar */}

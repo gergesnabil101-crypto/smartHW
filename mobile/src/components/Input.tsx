@@ -15,8 +15,6 @@ export function Input({ label, error, style, ...rest }: Props) {
       <TextInput
         style={[styles.input, error && styles.inputError, style]}
         placeholderTextColor={colors.textMuted}
-        textAlign="right"
-        writingDirection="rtl"
         {...rest}
       />
       {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -36,6 +34,8 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.text,
     minHeight: 48,
+    textAlign: 'right',
+    writingDirection: 'rtl',
   },
   inputError: { borderColor: colors.danger },
   error: { color: colors.danger, fontSize: 12, textAlign: 'right', writingDirection: 'rtl' },
