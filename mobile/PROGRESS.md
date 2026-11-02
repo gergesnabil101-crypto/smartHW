@@ -1,29 +1,27 @@
-# حالة تطوير تطبيق الموبايل — نقطة الاستئناف
+# حالة تطوير تطبيق الموبايل — نقطة الاستئناف (2026-11-02)
 
-آخر commit: `2e659c4`
+آخر commit على GitHub: `main` في repo `gergesnabil101-crypto/smartHW`
 
-## ما تم إنجازه
+## ما تم إنجازه ✅
 
-- مشروع Expo SDK 58 (React Native 0.88, React 19.3) في `mobile/` — TypeScript صارم
-- معمارية معيارية كاملة (لا ملفات ضخمة): `src/app/` للشاشات + `src/lib/` للخدمات + `src/components/` + `src/features/`
-- الشاشات المكتملة: دخول/تسجيل/استعادة كلمة مرور — لوحة المعلم (اختبارات + مجلدات) — محرر اختبار كامل مع توليد AI — تدفق الطالب كاملاً مع مؤقت وتسليم — قائمة النتائج — تفاصيل نتيجة مع إعادة تصحيح مقالي وتعديل يدوي — البروفايل
-- طبقة خدمات `src/lib/services.ts` تطابق كل endpoints السيرفر (~50 endpoint مُرسم)
-- أمان: HTTPS فقط، Bearer token تلقائي، Idempotency-Key، stub جاهز لـ App Check، صلاحيات Android مقيدة
-- `eas.json` جاهز لبناء AAB — معرف الحزمة `com.gergesnabil.mosahah`
+- تطبيق Expo كامل في `mobile/` — كل الشاشات (دخول/تسجيل/لوحة معلم/محرر اختبار/توليد AI/طالب+مؤقت/نتائج+إعادة تصحيح مقالي/بروفايل)
+- `npx tsc --noEmit` نظيف صفر أخطاء + `expo export` نجح (bundle 4.8MB)
+- رفع على GitHub: دمج تاريخ المستودع القديم مع المحلي — main محدث
+- Dockerfile جاهز + `DEPLOY.md` + دعم `GOOGLE_APPLICATION_CREDENTIALS_JSON` في server.ts
+- اكتشاف مهم: رابط `ais-pre-*.run.app` محمي بـ auth bridge — لا يصلح كـ API للموبايل. الحل الوحيد: نشر Cloud Run مستقل على نفس مشروع `gen-lang-client-0552360485`
 
-## معلومات تقنية مهمة
+## جاري حالياً ⏳
 
-- **التصحيح سيرفري بالكامل**: `POST /api/quizzes/:id/submit` يصحح MCQ/صح-خطأ ويصحح المقالي بـ Gemini — التطبيق يرسل `student_answers` خام فقط. رد: `{success, id, score, total, feedback}`
-- `feedback` محفوظ كـ JSON string بمفتاح question id → `{score, feedback, isCorrect, steps}`
-- الطالب يحتاج `check-attempts` ثم `start-attempt` (يرجع attemptToken) ثم `submit`
-- إعداد الـ API: `extra.apiBaseUrl` في `app.json` أو env `EXPO_PUBLIC_API_URL` — **لم يُضبط رابط السيرفر بعد**
+تجهيز gcloud على الجهاز:
+- SDK منزّل ومفكوك في `C:\Users\GERGE\AppData\Local\google-cloud-sdk` (شغّل عبر `bin/gcloud` بعد إضافته للـ PATH)
+- Python 3.12 كان بينزل بـ winget (Shell fc35e9) — تحقق `python --version` أولاً، وإن لزم أعد تشغيل install.bat داخل مجلد الـ SDK
 
-## مهام الغد (بالترتيب)
+## خطوات الغد بالترتيب
 
-1. `npx tsc --noEmit` في mobile/ — كان بطيئاً جداً ولم يكتمل؛ شغّله أولاً وأصلح أي أخطاء
-2. `npx expo lint` + `npx expo-doctor`
-3. ضبط رابط الـ backend الفعلي في `app.json > extra.apiBaseUrl` + `.env`
-4. تجربة التطبيق فعلياً (`npx expo start` + Expo Go أو emulator)
-5. رفع على GitHub (يحتاج رابط المستودع من المستخدم)
-6. توليد أيقونة التطبيق الحقيقية بدل الافتراضية
-7. مؤجل: استخراج PDF/صور — لوحة أدمن — واتساب/شهادات — IAP — App Check إجباري
+1. تحقق python يعمل، ثم `gcloud auth login` (يفتح متصفح — المستخدم يسجل بحسابه)
+2. `gcloud config set project gen-lang-client-0552360485` + تفعيل services (run, cloudbuild, artifactregistry)
+3. ملف `.env.production` بالأسرار (GEMINI_API_KEY, JWT_SECRET...) — يطلبها من المستخدم أو ينسخها من AI Studio secrets
+4. `gcloud run deploy mosahah-api --source . --region europe-west1 --allow-unauthenticated` (الدليل الكامل في DEPLOY.md)
+5. ضع الرابط الناتج في `mobile/app.json > extra.apiBaseUrl` + `.env`
+6. تجربة فعلية على Expo Go (سيرفر dev شغال: `npx expo start` → exp://192.168.1.38:8081)
+7. أيقونة التطبيق + بناء AAB عبر EAS (يحتاج حساب expo + Play Console من المستخدم)
