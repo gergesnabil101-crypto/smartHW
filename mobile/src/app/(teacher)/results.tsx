@@ -1,18 +1,22 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Alert, FlatList, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { useAuth } from '../../store/AuthContext';
 import { Screen } from '../../components/Screen';
 import { Card } from '../../components/Card';
 import { Input } from '../../components/Input';
+import { Button } from '../../components/Button';
 import { Loading, EmptyState, ErrorState } from '../../components/Feedback';
-import { listTeacherResults } from '../../lib/services';
+import { listTeacherResults, batchRecalculate } from '../../lib/services';
 import type { StudentResult } from '../../types';
 import { colors, radius, typography } from '../../theme';
 
 export default function ResultsScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { quizId } = useLocalSearchParams<{ quizId?: string }>();
   const [results, setResults] = useState<StudentResult[] | null>(null);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
@@ -41,6 +45,7 @@ export default function ResultsScreen() {
 
   const filtered = useMemo(() => {
     let list = results || [];
+    if (quizId) list = list.filter((r) => r.quiz_id === quizId);
     if (!showAll && user?.uid) {
       list = list.filter((r) => !r.teacher_id && !r.user_id ? true : r.teacher_id === user.uid || r.user_id === user.uid);
     }
@@ -49,7 +54,7 @@ export default function ResultsScreen() {
     return list.filter((r) =>
       `${r.student_name} ${r.quiz_title} ${r.center_name ?? ''}`.toLowerCase().includes(q)
     );
-  }, [results, search, showAll, user]);
+  }, [results, search, showAll, user, quizId]);
 
   if (results === null && !error) {
     return <Screen><Loading text="جاري تحميل النتائج..." /></Screen>;

@@ -9,6 +9,8 @@ import { Button } from '../../components/Button';
 import { Loading, ErrorState } from '../../components/Feedback';
 import { QuestionEditor } from '../../features/builder/QuestionEditor';
 import { AiGenerateSheet } from '../../features/builder/AiGenerateSheet';
+import { StudentCodesEditor } from '../../features/builder/StudentCodesEditor';
+import { SwitchRow } from '../../components/SwitchRow';
 import { getQuizForEdit, saveQuiz } from '../../lib/services';
 import { API_BASE_URL, LIMITS } from '../../config';
 import { GRADE_LEVELS } from '../../constants';
@@ -46,12 +48,24 @@ export default function QuizEditorScreen() {
   const [editing, setEditing] = useState<Question | null>(null);
   const [showAi, setShowAi] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [expiresInput, setExpiresInput] = useState('');
+
+  const commitExpires = () => {
+    const raw = expiresInput.trim();
+    if (!raw) return update({ expires_at: null });
+    const t = Date.parse(raw);
+    if (isNaN(t)) return Alert.alert('تاريخ غير صالح', 'اكتب التاريخ بصيغة YYYY-MM-DD مثل 2026-12-31');
+    const end = new Date(t);
+    end.setHours(23, 59, 59, 999);
+    update({ expires_at: end.toISOString() });
+  };
 
   const load = useCallback(async () => {
     if (isNew) return;
     try {
       const q = await getQuizForEdit(id!);
       setQuiz(q);
+      setExpiresInput(q.expires_at ? new Date(q.expires_at).toISOString().slice(0, 10) : '');
     } catch (e: any) {
       setLoadError(e?.message || 'تعذر تحميل الاختبار.');
     }
@@ -162,20 +176,46 @@ export default function QuizEditorScreen() {
                   })}
                 </View>
                 <Input
+                  label="مدة الاختبار بالدقائق (فارغ = وقت مفتوح)"
+                  value={quiz.time_limit ? String(quiz.time_limit) : ''}
+                  onChangeText={(t) => update({ time_limit: t ? Math.max(1, parseInt(t) || 1) : undefined })}
+                  keyboardType="numeric"
+                />
+                <Input
+                  label="تاريخ انتهاء الاختبار (YYYY-MM-DD، فارغ = بلا انتهاء)"
+                  value={expiresInput}
+                  onChangeText={setExpiresInput}
+                  onBlur={commitExpires}
+                  placeholder="2026-12-31"
+                />
+                <Input
                   label="الحد الأقصى للمحاولات (فارغ = بلا حد)"
                   value={quiz.maxAttempts ? String(quiz.maxAttempts) : ''}
                   onChangeText={(t) => update({ maxAttempts: t ? parseInt(t) : undefined })}
                   keyboardType="numeric"
                 />
-                <Pressable
-                  style={styles.switchRow}
-                  onPress={() => update({ showResultsToStudent: quiz.showResultsToStudent === false })}
-                >
-                  <Text style={typography.body}>إظهار النتيجة للطالب بعد التسليم</Text>
-                  <View style={[styles.switch, quiz.showResultsToStudent !== false && styles.switchOn]}>
-                    <View style={[styles.knob, quiz.showResultsToStudent !== false && styles.knobOn]} />
-                  </View>
-                </Pressable>
+                <SwitchRow
+                  label="إظهار النتيجة للطالب بعد التسليم"
+                  value={quiz.showResultsToStudent !== false}
+                  onChange={(v) => update({ showResultsToStudent: v })}
+                />
+                <SwitchRow
+                  label="الاختبار مفعّل (يستطيع الطلاب الدخول)"
+                  value={quiz.is_active !== false}
+                  onChange={(v) => update({ is_active: v })}
+                />
+                <SwitchRow
+                  label="يتطلب كود دخول لكل طالب"
+                  hint="وزّع على كل طالب كوداً خاصاً — يُستخدم مرة واحدة"
+                  value={!!quiz.require_student_code}
+                  onChange={(v) => update({ require_student_code: v })}
+                />
+                {quiz.require_student_code ? (
+                  <StudentCodesEditor
+                    codes={quiz.student_codes || []}
+                    onChange={(student_codes) => update({ student_codes })}
+                  />
+                ) : null}
               </Card>
             ) : null}
 
