@@ -51,7 +51,7 @@
       ]
     ],
     "extra": {
-      "apiBaseUrl": "https://REPLACE-WITH-YOUR-BACKEND.run.app",
+      "apiBaseUrl": "https://mosahah-api-609470896445.europe-west1.run.app",
       "router": {}
     },
     "experiments": {

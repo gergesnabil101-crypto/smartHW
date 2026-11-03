@@ -22,4 +22,4 @@ mobile/web-build/
 *.keystore
 google-play-service-account.json
 mobile/android/app/debug/
-mobile/android/app/release/
+mobile/android/app/release//nul
