@@ -49,9 +49,6 @@ export default function TeacherLayout() {
           tabBarIcon: ({ color, size }: any) => <Ionicons name="person" color={color} size={size} />,
         }}
       />
-      {/* Detail screens live inside the tab layout but are hidden from the bar */}
-      <Tabs.Screen name="quiz/[id]" options={{ href: null, title: 'محرر الاختبار' }} />
-      <Tabs.Screen name="result/[id]" options={{ href: null, title: 'تفاصيل النتيجة' }} />
     </Tabs>
   );
 }

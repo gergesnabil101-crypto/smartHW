@@ -126,7 +126,7 @@ export default function DashboardScreen() {
           />
         }
         renderItem={({ item }) => (
-          <Card onPress={() => router.push({ pathname: '/(teacher)/quiz/[id]', params: { id: item.id } })}>
+          <Card onPress={() => router.push({ pathname: '/quiz/[id]', params: { id: item.id } })}>
             <View style={styles.quizRow}>
               <View style={{ flex: 1 }}>
                 <Text style={typography.h3} numberOfLines={1}>{item.title}</Text>
@@ -143,9 +143,10 @@ export default function DashboardScreen() {
       />
 
       <View style={styles.actions}>
-        <Button title="+ اختبار جديد" onPress={() => router.push({ pathname: '/(teacher)/quiz/[id]', params: { id: 'new' } })} style={{ flex: 1 }} />
+        <Button title="+ اختبار جديد" onPress={() => router.push({ pathname: '/quiz/[id]', params: { id: 'new' } })} style={{ flex: 1 }} />
         <Button title="+ مجلد" variant="secondary" onPress={() => setFolderModal(true)} />
       </View>
+      <Text style={styles.buildTag}>v1.2</Text>
 
       <Modal visible={folderModal} transparent animationType="fade">
         <View style={styles.modalBackdrop}>
@@ -185,4 +186,5 @@ const styles = StyleSheet.create({
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 24 },
   modalCard: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: 20, gap: 10 },
   modalActions: { flexDirection: 'row', gap: 10, marginTop: 6 },
+  buildTag: { position: 'absolute', bottom: 2, left: 20, fontSize: 9, color: colors.textMuted },
 });

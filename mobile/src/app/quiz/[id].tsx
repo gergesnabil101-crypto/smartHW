@@ -1,20 +1,20 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
-import { Screen } from '../../../components/Screen';
-import { Card } from '../../../components/Card';
-import { Input } from '../../../components/Input';
-import { Button } from '../../../components/Button';
-import { Loading, ErrorState } from '../../../components/Feedback';
-import { QuestionEditor } from '../../../features/builder/QuestionEditor';
-import { AiGenerateSheet } from '../../../features/builder/AiGenerateSheet';
-import { getQuizForEdit, saveQuiz } from '../../../lib/services';
-import { API_BASE_URL, LIMITS } from '../../../config';
-import { GRADE_LEVELS } from '../../../constants';
-import { useAuth } from '../../../store/AuthContext';
-import type { Question, Quiz } from '../../../types';
-import { colors, radius, typography } from '../../../theme';
+import { Screen } from '../../components/Screen';
+import { Card } from '../../components/Card';
+import { Input } from '../../components/Input';
+import { Button } from '../../components/Button';
+import { Loading, ErrorState } from '../../components/Feedback';
+import { QuestionEditor } from '../../features/builder/QuestionEditor';
+import { AiGenerateSheet } from '../../features/builder/AiGenerateSheet';
+import { getQuizForEdit, saveQuiz } from '../../lib/services';
+import { API_BASE_URL, LIMITS } from '../../config';
+import { GRADE_LEVELS } from '../../constants';
+import { useAuth } from '../../store/AuthContext';
+import type { Question, Quiz } from '../../types';
+import { colors, radius, typography } from '../../theme';
 
 let qCounter = 0;
 const newQuestionId = () => `q_${Date.now()}_${qCounter++}`;
@@ -32,7 +32,7 @@ export default function QuizEditorScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const isNew = id === 'new';
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, initialized } = useAuth();
 
   const [quiz, setQuiz] = useState<Quiz | null>(isNew ? {
     id: `quiz_${Date.now()}`,
@@ -110,6 +110,7 @@ export default function QuizEditorScreen() {
     }
   };
 
+  if (initialized && !user) return <Redirect href="/(auth)/login" />;
   if (loadError) return <Screen><ErrorState message={loadError} onRetry={load} /></Screen>;
   if (!quiz) return <Screen><Loading text="جاري تحميل الاختبار..." /></Screen>;
 

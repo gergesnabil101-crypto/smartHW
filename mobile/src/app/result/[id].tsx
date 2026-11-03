@@ -1,15 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
-import { Screen } from '../../../components/Screen';
-import { Card } from '../../../components/Card';
-import { Input } from '../../../components/Input';
-import { Button } from '../../../components/Button';
-import { Loading, ErrorState } from '../../../components/Feedback';
-import { MathText } from '../../../components/MathText';
-import { getQuizForEdit, gradeEssay, gradeResult, listQuizResults, listTeacherResults, reviewResult } from '../../../lib/services';
-import type { Quiz, StudentResult } from '../../../types';
-import { colors, radius, typography } from '../../../theme';
+import { Redirect, useLocalSearchParams } from 'expo-router';
+import { useAuth } from '../../store/AuthContext';
+import { Screen } from '../../components/Screen';
+import { Card } from '../../components/Card';
+import { Input } from '../../components/Input';
+import { Button } from '../../components/Button';
+import { Loading, ErrorState } from '../../components/Feedback';
+import { MathText } from '../../components/MathText';
+import { getQuizForEdit, gradeEssay, gradeResult, listQuizResults, listTeacherResults, reviewResult } from '../../lib/services';
+import type { Quiz, StudentResult } from '../../types';
+import { colors, radius, typography } from '../../theme';
 
 interface QuestionFeedback {
   score?: number;
@@ -31,6 +32,7 @@ function parseFeedback(raw: unknown): Record<string, QuestionFeedback> {
 
 export default function ResultDetailScreen() {
   const { id, quizId } = useLocalSearchParams<{ id: string; quizId?: string }>();
+  const { user, initialized } = useAuth();
   const [result, setResult] = useState<StudentResult | null>(null);
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [feedbackMap, setFeedbackMap] = useState<Record<string, QuestionFeedback>>({});
@@ -140,6 +142,7 @@ export default function ResultDetailScreen() {
     }
   };
 
+  if (initialized && !user) return <Redirect href="/(auth)/login" />;
   if (error) return <Screen><ErrorState message={error} onRetry={load} /></Screen>;
   if (!result) return <Screen><Loading text="جاري تحميل النتيجة..." /></Screen>;
 
