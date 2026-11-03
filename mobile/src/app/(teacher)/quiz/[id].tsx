@@ -9,8 +9,7 @@ import { Button } from '../../../components/Button';
 import { Loading, ErrorState } from '../../../components/Feedback';
 import { QuestionEditor } from '../../../features/builder/QuestionEditor';
 import { AiGenerateSheet } from '../../../features/builder/AiGenerateSheet';
-import { api } from '../../../lib/api';
-import { saveQuiz } from '../../../lib/services';
+import { getQuizForEdit, saveQuiz } from '../../../lib/services';
 import { API_BASE_URL, LIMITS } from '../../../config';
 import { GRADE_LEVELS } from '../../../constants';
 import { useAuth } from '../../../store/AuthContext';
@@ -51,7 +50,7 @@ export default function QuizEditorScreen() {
   const load = useCallback(async () => {
     if (isNew) return;
     try {
-      const q = await api.get<Quiz>(`/api/quizzes/${encodeURIComponent(id!)}`);
+      const q = await getQuizForEdit(id!);
       setQuiz(q);
     } catch (e: any) {
       setLoadError(e?.message || 'تعذر تحميل الاختبار.');

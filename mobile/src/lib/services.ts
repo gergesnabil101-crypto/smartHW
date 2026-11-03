@@ -1,4 +1,5 @@
 import { api } from './api';
+import { normalizeQuiz, normalizeResult } from './normalize';
 import type { Quiz, Folder, StudentResult, UserProfile, EssayGradingResponse } from '../types';
 
 /**
@@ -18,7 +19,13 @@ export const createFolder = (name: string) =>
 export const deleteFolder = (id: string) => api.delete<{ success: boolean }>(`/api/folders/${id}`);
 
 // ---------- Quizzes (teacher) ----------
-export const listMyQuizzes = () => api.get<Quiz[]>('/api/user/quizzes');
+export const listMyQuizzes = () =>
+  api.get<unknown[]>('/api/user/quizzes').then((list) =>
+    (Array.isArray(list) ? list : []).map(normalizeQuiz)
+  );
+/** Load a quiz for the teacher editor (auth required — returns full payload). */
+export const getQuizForEdit = (id: string) =>
+  api.get<unknown>(`/api/quizzes/${encodeURIComponent(id)}`).then(normalizeQuiz);
 export const saveQuiz = (quiz: {
   id: string;
   title: string;
@@ -31,7 +38,7 @@ export const deleteQuiz = (id: string) => api.delete<{ success: boolean }>(`/api
 
 // ---------- Quiz (student-facing, no auth) ----------
 export const getQuizPublic = (id: string) =>
-  api.get<Quiz>(`/api/quizzes/${encodeURIComponent(id)}`, { auth: false });
+  api.get<unknown>(`/api/quizzes/${encodeURIComponent(id)}`, { auth: false }).then(normalizeQuiz);
 export const getTeacherStatus = (teacherId: string) =>
   api.get<{ active: boolean }>(`/api/teachers/${encodeURIComponent(teacherId)}/status`, { auth: false });
 export const checkAttempts = (quizId: string, data: { student_name: string; parent_phone?: string; student_phone?: string; student_code?: string }) =>
@@ -99,9 +106,14 @@ export const gradeEssay = (payload: {
 }) => api.post<EssayGradingResponse>('/api/ai-grade-essay', payload, { auth: false, timeoutMs: 120000 });
 
 // ---------- Results (teacher) ----------
-export const listTeacherResults = () => api.get<StudentResult[]>('/api/teacher/results');
+export const listTeacherResults = () =>
+  api.get<unknown[]>('/api/teacher/results').then((list) =>
+    (Array.isArray(list) ? list : []).map(normalizeResult)
+  );
 export const listQuizResults = (quizId: string) =>
-  api.get<StudentResult[]>(`/api/quizzes/${encodeURIComponent(quizId)}/results`);
+  api.get<unknown[]>(`/api/quizzes/${encodeURIComponent(quizId)}/results`).then((list) =>
+    (Array.isArray(list) ? list : []).map(normalizeResult)
+  );
 export const reviewResult = (resultId: string, data: Record<string, unknown>) =>
   api.patch<{ success: boolean }>(`/api/results/${encodeURIComponent(resultId)}/review`, data);
 export const gradeResult = (resultId: string, data: Record<string, unknown>) =>

@@ -57,7 +57,7 @@ export default function ResultsScreen() {
         renderItem={({ item }) => {
           const pct = item.total ? Math.round((Number(item.score) / Number(item.total)) * 100) : 0;
           return (
-            <Card onPress={() => router.push(`/(teacher)/result/${item.id}?quizId=${item.quiz_id || ''}`)}>
+            <Card onPress={() => router.push({ pathname: '/(teacher)/result/[id]', params: { id: String(item.id), quizId: item.quiz_id || '' } })}>
               <View style={styles.row}>
                 <View style={{ flex: 1 }}>
                   <Text style={typography.h3} numberOfLines={1}>{item.student_name}</Text>

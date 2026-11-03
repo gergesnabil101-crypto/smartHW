@@ -7,8 +7,7 @@ import { Input } from '../../../components/Input';
 import { Button } from '../../../components/Button';
 import { Loading, ErrorState } from '../../../components/Feedback';
 import { MathText } from '../../../components/MathText';
-import { api } from '../../../lib/api';
-import { gradeEssay, gradeResult, listQuizResults, listTeacherResults, reviewResult } from '../../../lib/services';
+import { getQuizForEdit, gradeEssay, gradeResult, listQuizResults, listTeacherResults, reviewResult } from '../../../lib/services';
 import type { Quiz, StudentResult } from '../../../types';
 import { colors, radius, typography } from '../../../theme';
 
@@ -53,7 +52,7 @@ export default function ResultDetailScreen() {
       setFeedbackMap(parseFeedback(found.feedback));
       const qid = found.quiz_id || quizId;
       if (qid) {
-        const q = await api.get<Quiz>(`/api/quizzes/${encodeURIComponent(qid)}`);
+        const q = await getQuizForEdit(qid);
         setQuiz(q);
       }
     } catch (e: any) {

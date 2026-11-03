@@ -126,7 +126,7 @@ export default function DashboardScreen() {
           />
         }
         renderItem={({ item }) => (
-          <Card onPress={() => router.push(`/(teacher)/quiz/${item.id}`)}>
+          <Card onPress={() => router.push({ pathname: '/(teacher)/quiz/[id]', params: { id: item.id } })}>
             <View style={styles.quizRow}>
               <View style={{ flex: 1 }}>
                 <Text style={typography.h3} numberOfLines={1}>{item.title}</Text>
@@ -143,7 +143,7 @@ export default function DashboardScreen() {
       />
 
       <View style={styles.actions}>
-        <Button title="+ اختبار جديد" onPress={() => router.push('/(teacher)/quiz/new')} style={{ flex: 1 }} />
+        <Button title="+ اختبار جديد" onPress={() => router.push({ pathname: '/(teacher)/quiz/[id]', params: { id: 'new' } })} style={{ flex: 1 }} />
         <Button title="+ مجلد" variant="secondary" onPress={() => setFolderModal(true)} />
       </View>
 
