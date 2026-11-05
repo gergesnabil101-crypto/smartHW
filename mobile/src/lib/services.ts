@@ -121,5 +121,11 @@ export const gradeResult = (resultId: string, data: Record<string, unknown>) =>
 export const batchRecalculate = (quizId: string) =>
   api.post<{ success: boolean; updated?: number }>('/api/results/batch-recalculate', { quizId });
 
+// ---------- Admin ----------
+export const listAdminUsers = () =>
+  api.get<{ users: any[]; totalReviewed?: number }>('/api/admin/users').then((r) => r?.users || []);
+export const adminUpdateUser = (userId: string, email: string | undefined, updates: Record<string, unknown>) =>
+  api.post<{ success: boolean }>('/api/admin/update-user', { userId, email, updates }, { idempotent: true });
+
 // ---------- Misc ----------
 export const healthCheck = () => api.get<{ ok: boolean }>('/api/health', { auth: false });

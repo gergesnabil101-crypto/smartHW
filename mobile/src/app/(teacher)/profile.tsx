@@ -119,6 +119,10 @@ export default function ProfileScreen() {
         <Button title="حفظ التعديلات" onPress={save} loading={saving} />
       </Card>
 
+      {(profile?.isAdmin === true || profile?.role === 'admin') ? (
+        <Button title="👑 إدارة المستخدمين" variant="secondary" onPress={() => router.push('/admin/users')} style={{ marginTop: 8 }} />
+      ) : null}
+
       <Button title="تسجيل الخروج" variant="danger" onPress={confirmLogout} style={{ marginTop: 8 }} />
       <Text style={[typography.caption, styles.version]}>مصحح الواجبات الذكي — الإصدار 1.0.0</Text>
     </Screen>
