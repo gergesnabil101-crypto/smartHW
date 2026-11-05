@@ -3,6 +3,7 @@ import { Alert, FlatList, Linking, Pressable, StyleSheet, Text, View } from 'rea
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import * as Print from 'expo-print';
 import { useAuth } from '../../store/AuthContext';
 import { Screen } from '../../components/Screen';
 import { Card } from '../../components/Card';
@@ -102,6 +103,53 @@ export default function ResultsScreen() {
     }
   };
 
+  const exportPdf = async () => {
+    if (!filtered.length) return Alert.alert('لا توجد بيانات', 'لا توجد نتائج لتصديرها.');
+    setExporting(true);
+    try {
+      const esc = (v: unknown) =>
+        String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const title = quizId && filtered[0]?.quiz_title ? `نتائج اختبار: ${filtered[0].quiz_title}` : 'نتائج الطلاب';
+      const rowsHtml = filtered
+        .map((r, i) => {
+          const pct = r.total ? Math.round((Number(r.score) / Number(r.total)) * 100) : 0;
+          return `<tr>
+            <td>${i + 1}</td>
+            <td>${esc(r.student_name)}</td>
+            <td>${esc(r.quiz_title || '')}</td>
+            <td>${esc(r.center_name || '')}</td>
+            <td>${esc(r.parent_phone || '')}</td>
+            <td>${esc(r.score)} / ${esc(r.total)}</td>
+            <td>${pct}%</td>
+            <td>${esc(formatDate(r.created_at))}</td>
+          </tr>`;
+        })
+        .join('');
+      const html = `<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="utf-8"/>
+        <style>
+          body { font-family: sans-serif; padding: 24px; direction: rtl; }
+          h1 { font-size: 18px; margin-bottom: 4px; }
+          p.sub { color: #666; font-size: 12px; margin-bottom: 16px; }
+          table { width: 100%; border-collapse: collapse; font-size: 12px; }
+          th, td { border: 1px solid #999; padding: 6px 8px; text-align: right; }
+          th { background: #f0f0f0; font-weight: bold; }
+          tr:nth-child(even) td { background: #fafafa; }
+        </style></head><body>
+        <h1>${esc(title)}</h1>
+        <p class="sub">${filtered.length} نتيجة — ${new Date().toLocaleString('ar-EG')}</p>
+        <table><thead><tr>
+          <th>#</th><th>اسم الطالب</th><th>الاختبار</th><th>السنتر</th><th>هاتف ولي الأمر</th><th>الدرجة</th><th>النسبة</th><th>التاريخ</th>
+        </tr></thead><tbody>${rowsHtml}</tbody></table>
+        </body></html>`;
+      const { uri } = await Print.printToFileAsync({ html, width: 842, height: 595 }); // A4 landscape
+      await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'تصدير النتائج PDF' });
+    } catch (e: any) {
+      Alert.alert('فشل التصدير', e?.message || 'حاول مرة أخرى.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const recalc = async () => {
     if (!quizId) return;
     setRecalcing(true);
@@ -136,6 +184,7 @@ export default function ResultsScreen() {
         ) : null}
         <View style={styles.toolbarRow}>
           <Button title={exporting ? 'جاري التصدير...' : '⬇ تصدير CSV'} variant="secondary" onPress={exportCsv} loading={exporting} />
+          <Button title="📄 تصدير PDF" variant="secondary" onPress={exportPdf} loading={exporting} />
           {quizId ? (
             <Button title={recalcing ? 'جاري الحساب...' : '↻ إعادة حساب الدرجات'} variant="secondary" onPress={recalc} loading={recalcing} />
           ) : null}
