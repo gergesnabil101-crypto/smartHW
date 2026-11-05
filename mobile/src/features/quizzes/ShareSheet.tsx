@@ -29,7 +29,7 @@ export function ShareSheet({ quizTitle, shareUrl }: Props) {
       <View style={styles.qrBox}>
         <QRCode value={shareUrl} size={200} backgroundColor="#fff" />
       </View>
-      <Text style={typography.caption} numberOfLines={1} style={styles.url}>{shareUrl}</Text>
+      <Text style={[typography.caption, styles.url]} numberOfLines={1}>{shareUrl}</Text>
       <View style={styles.row}>
         <Button title="نسخ الرابط" onPress={copy} style={{ flex: 1 }} />
         <Button title="واتساب" variant="secondary" onPress={whatsapp} style={{ flex: 1 }} />

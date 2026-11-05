@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
 import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
 import { aiGenerate } from '../../lib/services';
 import { useAuth } from '../../store/AuthContext';
 import type { Question } from '../../types';
-import { colors, typography } from '../../theme';
+import { colors, radius, typography } from '../../theme';
 
 interface Props {
   subject?: string;
@@ -56,6 +58,19 @@ const RESPONSE_SCHEMA = {
   },
 };
 
+const EXTRACTION_INSTRUCTIONS = `أنت خبير تربوي ومعد اختبارات أول. حوّل محتوى هذا الملف/الصورة إلى بنك أسئلة دقيق لاختبار تعليمي، مع حل كل مسألة بدقة علمية تامة.
+
+قواعد إلزامية:
+1. استخرج كل سؤال وتمرين ومسألة في الملف من أوله لآخره دون استثناء — ممنوع الاكتفاء بعينة.
+   - انتبه للصفحات متعددة الأعمدة: اقرأ كل الأعمدة بالكامل.
+   - الأسئلة الفرعية (أ، ب، ج) تُستخرج كل منها كسؤال مستقل.
+2. حافظ بدقة متناهية على: الأرقام العشرية والفواصل (0.5 لا تصبح 5)، الرموز الرياضية والعلمية والكيميائية، ووسوم LaTeX ($...$).
+3. أي كلمة تحتها خط في الأصل يجب إحاطتها بوسم <u>الكلمة</u> في نص السؤال أو الخيارات.
+4. حل كل مسألة بنفسك: حدد الإجابة الصحيحة بدقة (correctOptionIndex مطابق لنص correctAnswer)، واكتب خطوات الحل في modelAnswer. ممنوع التخمين أو وضع 0 افتراضياً دون حل.
+5. الأنواع: 'multiple-choice' (4 خيارات)، 'true-false' (["True","False"] إنجليزي أو ["صح","خطأ"] عربي)، 'essay' (options: []).
+6. حافظ على لغة المستند الأصلية — ممنوع الترجمة.
+7. أخرج JSON فقط كمصفوفة كائنات بالحقول: text, type, options, correctAnswer, correctOptionIndex, modelAnswer.`;
+
 function buildPrompt(topic: string, count: number, essayCount: number, subject?: string): string {
   return `أنت خبير تربوي ومعد اختبارات أول. أنشئ اختباراً تعليمياً عن الموضوع التالي: "${topic}"${subject ? ` في مادة ${subject}` : ''}.
 
@@ -69,14 +84,35 @@ ${essayCount > 0 ? `- ${essayCount} سؤال مقالي ('type': 'essay') مع �
 - أخرج JSON فقط كمصفوفة كائنات بدون أي نص إضافي.`;
 }
 
-/** Modal sheet: generate questions from a topic prompt via the server AI endpoint. */
+type Mode = 'topic' | 'file';
+interface PickedFile { name: string; mimeType: string; base64: string }
+
+/** Modal sheet: generate questions from a topic, or extract them from a file/image. */
 export function AiGenerateSheet({ subject, onQuestions, onClose }: Props) {
   const { profile } = useAuth();
+  const [mode, setMode] = useState<Mode>('topic');
   const [topic, setTopic] = useState('');
   const [count, setCount] = useState('5');
   const [essayCount, setEssayCount] = useState('0');
+  const [file, setFile] = useState<PickedFile | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
+  const finish = (raw: string | undefined) => {
+    const questions = parseQuestionsJson(raw || '');
+    if (questions.length === 0) {
+      setError('لم يتم استخراج أسئلة صالحة. جرب ملفاً أو صياغة أوضح.');
+      return;
+    }
+    onQuestions(questions);
+    onClose();
+  };
+
+  const aiConfig = { responseMimeType: 'application/json', responseSchema: RESPONSE_SCHEMA, maxOutputTokens: 8192 };
+  const aiMeta = {
+    subjectName: subject || profile?.subject,
+    planId: profile?.subscription_type,
+  };
 
   const generate = async () => {
     if (!topic.trim()) return setError('اكتب موضوع الاختبار أولاً.');
@@ -88,19 +124,58 @@ export function AiGenerateSheet({ subject, onQuestions, onClose }: Props) {
       const res = await aiGenerate<{ text?: string }>({
         contents: { parts: [{ text: buildPrompt(topic.trim(), n, e, subject) }] },
         operation: 'quiz_generation',
-        subjectName: subject || profile?.subject,
-        planId: profile?.subscription_type,
-        config: { responseMimeType: 'application/json', responseSchema: RESPONSE_SCHEMA, maxOutputTokens: 8192 },
+        ...aiMeta,
+        config: aiConfig,
       });
-      const questions = parseQuestionsJson(res?.text || '');
-      if (questions.length === 0) {
-        setError('لم يتم توليد أسئلة صالحة. حاول بصياغة أوضح للموضوع.');
-        return;
-      }
-      onQuestions(questions);
-      onClose();
+      finish(res?.text);
     } catch (err: any) {
       setError(err?.message || 'فشل التوليد. حاول مرة أخرى.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const pickDocument = async () => {
+    setError('');
+    const res = await DocumentPicker.getDocumentAsync({
+      type: ['application/pdf', 'image/*', 'text/plain',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+      copyToCacheDirectory: true,
+      base64: true,
+    });
+    if (res.canceled || !res.assets?.[0]) return;
+    const a = res.assets[0];
+    if (!a.base64) return setError('تعذر قراءة الملف. جرب ملفاً أصغر.');
+    setFile({ name: a.name || 'file', mimeType: a.mimeType || 'application/pdf', base64: a.base64 });
+  };
+
+  const pickImage = async () => {
+    setError('');
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.85, base64: true });
+    if (res.canceled || !res.assets?.[0]) return;
+    const a = res.assets[0];
+    if (!a.base64) return setError('تعذر قراءة الصورة.');
+    setFile({ name: a.fileName || 'image.jpg', mimeType: a.mimeType || 'image/jpeg', base64: a.base64 });
+  };
+
+  const extract = async () => {
+    if (!file) return setError('اختر ملفاً أو صورة أولاً.');
+    setBusy(true);
+    setError('');
+    try {
+      const res = await aiGenerate<{ text?: string }>({
+        contents: { parts: [
+          { inlineData: { mimeType: file.mimeType, data: file.base64 } },
+          { text: EXTRACTION_INSTRUCTIONS },
+        ] },
+        operation: 'extract_questions',
+        ...aiMeta,
+        config: aiConfig,
+      });
+      finish(res?.text);
+    } catch (err: any) {
+      setError(err?.message || 'فشل الاستخراج. حاول مرة أخرى.');
     } finally {
       setBusy(false);
     }
@@ -109,29 +184,70 @@ export function AiGenerateSheet({ subject, onQuestions, onClose }: Props) {
   return (
     <View>
       <Text style={typography.h3}>توليد أسئلة بالذكاء الاصطناعي</Text>
-      <Text style={[typography.caption, { marginBottom: 12 }]}>
-        اكتب الموضوع وسيتم توليد أسئلة مع الإجابات النموذجية — راجعها قبل الحفظ.
-      </Text>
-      <Input label="الموضوع" value={topic} onChangeText={setTopic} multiline placeholder="مثال: قوانين نيوتن للحركة — الصف الثالث الإعدادي" />
-      <View style={styles.row}>
-        <View style={{ flex: 1 }}>
-          <Input label="عدد الأسئلة" value={count} onChangeText={setCount} keyboardType="numeric" />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Input label="منها مقالي" value={essayCount} onChangeText={setEssayCount} keyboardType="numeric" />
-        </View>
+      <View style={styles.modeRow}>
+        <Pressable onPress={() => setMode('topic')} style={[styles.modeChip, mode === 'topic' && styles.modeChipOn]}>
+          <Text style={[styles.modeText, mode === 'topic' && styles.modeTextOn]}>من موضوع</Text>
+        </Pressable>
+        <Pressable onPress={() => setMode('file')} style={[styles.modeChip, mode === 'file' && styles.modeChipOn]}>
+          <Text style={[styles.modeText, mode === 'file' && styles.modeTextOn]}>من ملف / صورة</Text>
+        </Pressable>
       </View>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      <View style={styles.actions}>
-        <Button title={busy ? 'جاري التوليد...' : 'توليد الأسئلة'} onPress={generate} loading={busy} style={{ flex: 1 }} />
-        <Button title="إلغاء" variant="ghost" onPress={onClose} disabled={busy} />
-      </View>
+
+      {mode === 'topic' ? (
+        <View>
+          <Text style={[typography.caption, { marginBottom: 12 }]}>
+            اكتب الموضوع وسيتم توليد أسئلة مع الإجابات النموذجية — راجعها قبل الحفظ.
+          </Text>
+          <Input label="الموضوع" value={topic} onChangeText={setTopic} multiline placeholder="مثال: قوانين نيوتن للحركة — الصف الثالث الإعدادي" />
+          <View style={styles.row}>
+            <View style={{ flex: 1 }}>
+              <Input label="عدد الأسئلة" value={count} onChangeText={setCount} keyboardType="numeric" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Input label="منها مقالي" value={essayCount} onChangeText={setEssayCount} keyboardType="numeric" />
+            </View>
+          </View>
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+          <View style={styles.actions}>
+            <Button title={busy ? 'جاري التوليد...' : 'توليد الأسئلة'} onPress={generate} loading={busy} style={{ flex: 1 }} />
+            <Button title="إلغاء" variant="ghost" onPress={onClose} disabled={busy} />
+          </View>
+        </View>
+      ) : (
+        <View>
+          <Text style={[typography.caption, { marginBottom: 12 }]}>
+            ارفع ملف PDF أو Word أو صورة ورقة أسئلة — سيستخرج الذكاء كل الأسئلة ويحلها.
+          </Text>
+          <View style={styles.row}>
+            <Button title="📄 اختيار ملف" variant="secondary" onPress={pickDocument} style={{ flex: 1 }} />
+            <Button title="🖼 اختيار صورة" variant="secondary" onPress={pickImage} style={{ flex: 1 }} />
+          </View>
+          {file ? (
+            <View style={styles.fileBox}>
+              <Text style={typography.body} numberOfLines={1}>📎 {file.name}</Text>
+              <Pressable onPress={() => setFile(null)}><Text style={styles.removeFile}>إزالة</Text></Pressable>
+            </View>
+          ) : null}
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+          <View style={styles.actions}>
+            <Button title={busy ? 'جاري الاستخراج...' : 'استخراج الأسئلة'} onPress={extract} loading={busy} disabled={!file} style={{ flex: 1 }} />
+            <Button title="إلغاء" variant="ghost" onPress={onClose} disabled={busy} />
+          </View>
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row-reverse', gap: 10 },
+  modeRow: { flexDirection: 'row-reverse', gap: 8, marginVertical: 12 },
+  modeChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  modeChipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  modeText: { fontSize: 13, fontWeight: '700', color: colors.textSecondary },
+  modeTextOn: { color: '#fff' },
+  row: { flexDirection: 'row', gap: 10 },
   error: { color: colors.danger, textAlign: 'right', writingDirection: 'rtl', marginBottom: 10 },
-  actions: { flexDirection: 'row', gap: 10, marginTop: 8 },
+  actions: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  fileBox: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.primarySoft, borderRadius: radius.md, padding: 10, marginTop: 10 },
+  removeFile: { color: colors.danger, fontWeight: '700', fontSize: 12 },
 });
