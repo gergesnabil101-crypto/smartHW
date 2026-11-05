@@ -1,47 +1,23 @@
-# نقطة استئناف المشروع — 2026-11-03
+# نقطة استئناف المشروع — 2026-11-05
 
-## الوضع المؤكد
+## الحالة ✅ مكتمل ومرفوع (main @ ed3437d)
 
-- المستودع: `gergesnabil101-crypto/smartHW`، الفرع `main`.
-- آخر commit مرفوع قبل هذه النقطة: `826f5a8` (نقل شاشات التفاصيل من Tabs إلى Stack وإضافة فلتر نتائج المعلم).
-- Backend منشور على Cloud Run ويستجيب على `https://mosahah-api-609470896445.europe-west1.run.app`.
-  - الجذر يرجع `200`.
-  - endpoint محمي مثل `/api/user/profile` يرجع `401` بدون Firebase token، وهذا متوقع.
-- رابط الـ API موجود في إعدادات تطبيق الموبايل (`mobile/app.json` وبيئة التطوير).
-- المستخدم أكد أن الاختبارات والبيانات الأساسية أصبحت تفتح بعد إصلاح مسارات التنقل وتطبيع استجابات API.
-- التطبيق Native بـ Expo Router، والتصحيح authoritative ما زال على السيرفر.
+- Backend على Cloud Run شغال بالكامل: `mosahah-api-609470896445.europe-west1.run.app`
+  - كل env vars اتبعتت من `.env.production.yaml` عبر gcloud (حساب gergesnabil101@gmail.com مسجل)
+  - `hasKey:true, serverAiReady:true` — Gemini يعمل (gemini-3.8-flash)
+- تطبيق Expo: auth + dashboard + محرر اختبار (مدة/انتهاء/أكواد/تفعيل) + مشاركة QR/واتساب + نقل مجلد + نتائج (CSV/واتساب/إعادة حساب/فلتر طلابي) + استخراج AI من ملف/صورة + بروفايل كامل + صفحة أدمن `/admin/users`
+- آي picon حقيقي + حراسة مصادقة على كل الشاشات + تطبيع بيانات `data`/JSON strings
+- tsc نظيف (آخر فحص ناجح قبل الأدمن؛ تعديل الأدمن بسيط)
 
-## ما بدأ في هذه الجلسة — يحتاج إكمالاً واختباراً
+## متبقي ⏳
 
-- إعدادات المحرر في `src/app/quiz/[id].tsx`: مدة الاختبار، تاريخ الانتهاء، تفعيل/تعطيل، إظهار النتيجة، كود الطالب، وحد المحاولات.
-- أضيف مكوّن `src/components/SwitchRow.tsx` ومحرر أكواد `src/features/builder/StudentCodesEditor.tsx`.
-- أضيف `src/features/quizzes/ShareSheet.tsx` للمشاركة عبر QR ونسخ الرابط وواتساب.
-- أضيفت إلى بطاقة الاختبار أزرار المشاركة والنتائج والنقل إلى مجلد والتفعيل/التعطيل والحذف.
-- بدأت إضافة فلترة النتائج حسب اختبار محدد، وأضيفت اعتماديات للتصدير والمشاركة وإعادة الحساب، لكن واجهة التصدير/واتساب/إعادة الحساب **لم تكتمل**.
-- أضيفت حزم Expo المتوافقة مع SDK 58: `expo-document-picker`, `expo-file-system`, `expo-sharing`, `react-native-svg`, `react-native-qrcode-svg` وغيرها. استخراج الملفات بالذكاء الاصطناعي لم يُنفذ بعد.
-- حُفظت تعديلات الجلسة في commit محلي `e72682b` كـ WIP checkpoint. فحص TypeScript لم يُنفّذ؛ المحاولة أُلغيت قبل بدء الأمر، لذلك لا تعتبر التعديلات مختبرة.
+1. تجربة Expo Go على الموبايل — عنوان الشبكة الحالي `192.168.1.141:8081` (يتغير بإعادة تشغيل الراوتر؛ لو فشل الاتصال شغّل `npx expo start --tunnel` بعد تسجيل دخول Expo)
+2. حساب Expo (expo.dev/signup — مجاني) مطلوب لـ tunnel + EAS build
+3. `eas build -p android --profile production` → AAB → Play Console ($25)
+4. IAP للاشتراكات — مؤجل لما يتطلبه Play
 
-## الملفات المعدلة أو الجديدة
+## أوامر سريعة
 
-- `mobile/package.json` و`mobile/package-lock.json`
-- `mobile/src/app/(teacher)/index.tsx`
-- `mobile/src/app/(teacher)/results.tsx`
-- `mobile/src/app/quiz/[id].tsx`
-- `mobile/src/components/SwitchRow.tsx`
-- `mobile/src/features/builder/StudentCodesEditor.tsx`
-- `mobile/src/features/quizzes/ShareSheet.tsx`
-
-## الخطوة التالية بالترتيب
-
-1. من `mobile/` شغّل `npx tsc --noEmit` وأصلح أخطاء هذه التعديلات.
-2. أكمل شاشة النتائج: فلتر الاختبار، إرسال واتساب لولي الأمر، تصدير CSV، وإعادة حساب الدرجات. لا تعرض نتائج معلمين آخرين افتراضياً؛ تظل «طلابي فقط» هي الوضع الافتراضي.
-3. اختبر إعدادات الاختبار، الأكواد، المشاركة، نقل المجلد، والنتائج على Expo Go. المستخدم أكد سابقاً أن فتح الاختبارات أصبح يعمل.
-4. أكمل مقارنة خصائص الويب: استخراج PDF/Word/صور بالـ AI، الملف الشخصي، ثم الاشتراكات داخل التطبيق.
-5. بعدها تحقق من Expo Doctor، ثم بناء Android AAB عبر EAS. يتطلب البناء تسجيل دخول Expo للمستخدم؛ النشر يتطلب Play Console.
-
-## ملاحظات أمان وجودة
-
-- لا تضع أسرار Gemini/Firebase Admin/JWT في تطبيق الموبايل؛ أسرار الخادم تبقى على Cloud Run.
-- بيانات الطلاب والدرجات يجب أن تظل مقيّدة بحساب المعلم؛ الفلترة في الواجهة ليست بديلاً عن صلاحيات API.
-- لا تدّعِ اكتمال الميزات أو جاهزية المتجر قبل الاختبار الفعلي والتحقق من الخادم والبناء.
-- عند لمس Expo APIs، راجع وثائق SDK 58 وإرشادات `mobile/AGENTS.md`.
+- تشغيل dev server: `cd mobile && npx expo start --port 8081`
+- توليد QR: `node -e "require('qrcode').toFile('app-qr.png','exp://IP:8081',{width:400},console.log)"`
+- رفع env vars للسيرفر: `python %LOCALAPPDATA%\google-cloud-sdk\lib\gcloud.py run services update mosahah-api --region europe-west1 --project gen-lang-client-0552360485 --env-vars-file .env.production.yaml`
