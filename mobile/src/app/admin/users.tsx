@@ -21,6 +21,9 @@ interface AdminUser {
   subscription_type?: string;
   subscription_status?: string;
   is_suspended?: boolean;
+  tokens_used?: number;
+  tokens_used_today?: number;
+  extra_tokens?: number;
   created_at?: string;
 }
 
@@ -110,6 +113,10 @@ export default function AdminUsersScreen() {
                   <Text style={typography.caption} numberOfLines={1}>{item.email}</Text>
                   <Text style={typography.caption} numberOfLines={1}>
                     {item.subject || '—'}{item.subscription_type ? ` • ${item.subscription_type}` : ''}
+                  </Text>
+                  <Text style={typography.caption} numberOfLines={1}>
+                    🪙 اليوم: {Number(item.tokens_used_today || 0).toLocaleString('en')} • الإجمالي: {Number(item.tokens_used || 0).toLocaleString('en')}
+                    {item.extra_tokens ? ` • إضافي: ${Number(item.extra_tokens).toLocaleString('en')}` : ''}
                   </Text>
                 </View>
                 <View style={[styles.badge, suspended ? styles.badgeSuspended : status === 'active' || isAdminUser ? styles.badgeActive : styles.badgeTrial]}>
