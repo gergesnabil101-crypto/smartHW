@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen } from '../../components/Screen';
 import { Card } from '../../components/Card';
@@ -112,30 +112,28 @@ export default function DashboardScreen() {
   return (
     <Screen scroll={false}>
       {/* Folder filter row */}
-      <FlatList
-        horizontal
-        data={[{ id: null, name: 'الكل' } as any, ...folders]}
-        keyExtractor={(f) => String(f.id ?? 'all')}
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.folderRow}
-        renderItem={({ item }) => (
-          <Pressable
-            onPress={() => setActiveFolder(item.id)}
-            onLongPress={() => {
-              if (!item.id) return;
-              Alert.alert('حذف المجلد', `حذف مجلد "${item.name}"؟ (الاختبارات بداخله لن تُحذف)`, [
-                { text: 'إلغاء', style: 'cancel' },
-                { text: 'حذف', style: 'destructive', onPress: () => deleteFolder(item.id).then(load).catch(() => null) },
-              ]);
-            }}
-            style={[styles.folderChip, activeFolder === item.id && styles.folderChipActive]}
-          >
-            <Text style={[styles.folderChipText, activeFolder === item.id && styles.folderChipTextActive]}>
-              {item.name}
-            </Text>
-          </Pressable>
-        )}
-      />
+      <View style={styles.folderRowWrap}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.folderRow}>
+          {[{ id: null, name: 'الكل' } as any, ...folders].map((item) => (
+            <Pressable
+              key={String(item.id ?? 'all')}
+              onPress={() => setActiveFolder(item.id)}
+              onLongPress={() => {
+                if (!item.id) return;
+                Alert.alert('حذف المجلد', `حذف مجلد "${item.name}"؟ (الاختبارات بداخله لن تُحذف)`, [
+                  { text: 'إلغاء', style: 'cancel' },
+                  { text: 'حذف', style: 'destructive', onPress: () => deleteFolder(item.id).then(load).catch(() => null) },
+                ]);
+              }}
+              style={[styles.folderChip, activeFolder === item.id && styles.folderChipActive]}
+            >
+              <Text style={[styles.folderChipText, activeFolder === item.id && styles.folderChipTextActive]}>
+                {item.name}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      </View>
 
       {error ? <ErrorState message={error} onRetry={load} /> : null}
 
@@ -260,7 +258,8 @@ export default function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  folderRow: { gap: 8, paddingHorizontal: 16, paddingVertical: 10 },
+  folderRowWrap: { flexShrink: 0, minHeight: 48 },
+  folderRow: { gap: 8, paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center', flexDirection: 'row' },
   folderChip: {
     paddingHorizontal: 14, paddingVertical: 8,
     borderRadius: 20, backgroundColor: colors.surface,

@@ -38,6 +38,7 @@ export default function AdminUsersScreen() {
   const [search, setSearch] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [tab, setTab] = useState<'trial' | 'active' | 'closed'>('active');
 
   const isAdmin = profile?.isAdmin === true || profile?.role === 'admin';
 
@@ -53,12 +54,25 @@ export default function AdminUsersScreen() {
 
   useEffect(() => { load(); }, [load]);
 
+  const categoryOf = (u: AdminUser): 'trial' | 'active' | 'closed' => {
+    if (u.is_suspended || u.subscription_status === 'expired') return 'closed';
+    const s = (u.subscription_status || '').toLowerCase();
+    if (s === 'active' || s === 'admin' || u.admin === true || u.role === 'admin') return 'active';
+    return 'trial'; // trial / pending / empty
+  };
+
+  const counts = useMemo(() => {
+    const c = { trial: 0, active: 0, closed: 0 };
+    (users || []).forEach((u) => { c[categoryOf(u)]++; });
+    return c;
+  }, [users]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const list = users || [];
+    let list = (users || []).filter((u) => categoryOf(u) === tab);
     if (!q) return list;
     return list.filter((u) => `${u.name} ${u.email} ${u.phone || ''} ${u.subject || ''}`.toLowerCase().includes(q));
-  }, [users, search]);
+  }, [users, search, tab]);
 
   const toggleSuspend = async (u: AdminUser) => {
     const uid = u.uid || u.id;
@@ -89,6 +103,17 @@ export default function AdminUsersScreen() {
     <Screen scroll={false}>
       <View style={styles.searchWrap}>
         <Input placeholder="ابحث بالاسم أو البريد أو الهاتف..." value={search} onChangeText={setSearch} />
+        <View style={styles.tabsRow}>
+          {([
+            { key: 'trial' as const, label: `تجريبي (${counts.trial})` },
+            { key: 'active' as const, label: `مفعّل (${counts.active})` },
+            { key: 'closed' as const, label: `مغلق (${counts.closed})` },
+          ]).map((t) => (
+            <Pressable key={t.key} onPress={() => setTab(t.key)} style={[styles.tabChip, tab === t.key && styles.tabChipOn]}>
+              <Text style={[styles.tabText, tab === t.key && styles.tabTextOn]}>{t.label}</Text>
+            </Pressable>
+          ))}
+        </View>
         <Text style={typography.caption}>{filtered.length} مستخدم</Text>
       </View>
       {error ? <ErrorState message={error} onRetry={load} /> : null}
@@ -140,6 +165,11 @@ export default function AdminUsersScreen() {
 
 const styles = StyleSheet.create({
   searchWrap: { padding: 16, paddingBottom: 4 },
+  tabsRow: { flexDirection: 'row-reverse', gap: 8, marginTop: 8, marginBottom: 4 },
+  tabChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  tabChipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  tabText: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },
+  tabTextOn: { color: '#fff' },
   list: { padding: 16, flexGrow: 1 },
   row: { flexDirection: 'row-reverse', alignItems: 'center', gap: 12 },
   badge: { borderRadius: radius.md, paddingHorizontal: 10, paddingVertical: 5 },
