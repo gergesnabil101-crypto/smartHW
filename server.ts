@@ -1309,7 +1309,13 @@ async function startServer() {
             subscription_type: plan,
             subscription_status: 'active',
             is_suspended: false,
-            hasAccess: true
+            hasAccess: true,
+            // Renewal starts a fresh billing period: do not carry over old balance
+            tokens_used: 0,
+            tokens_used_today: 0,
+            tokens_used_total: 0,
+            extra_tokens: 0,
+            last_token_reset_date: new Date().toISOString().split('T')[0]
           }, { merge: true });
 
           console.log(`Stripe subscription activated for user ${userId}`);
@@ -4492,6 +4498,22 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
       if (!userId && !email) {
         return res.status(400).json({ error: 'userId or email is required' });
       }
+
+      // If the admin is renewing the subscription (active status + new future end
+      // date), start the new billing period from zero — never carry the old
+      // remaining balance forward.
+      const newEnd = updates?.subscription_end_date ? new Date(updates.subscription_end_date) : null;
+      const isRenewal = updates?.subscription_status === 'active' && newEnd && !isNaN(newEnd.getTime()) && newEnd.getTime() > Date.now();
+      if (isRenewal) {
+        Object.assign(updates, {
+          tokens_used: 0,
+          tokens_used_today: 0,
+          tokens_used_total: 0,
+          extra_tokens: 0,
+          last_token_reset_date: new Date().toISOString().split('T')[0]
+        });
+      }
+
       const targetPayload = {
         id: userId,
         uid: userId,
@@ -5176,6 +5198,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
           tokens_used: 0,
           tokens_used_today: 0,
           tokens_used_total: 0,
+          extra_tokens: 0,
           last_token_reset_date: new Date().toISOString().split('T')[0]
         };
 
