@@ -170,7 +170,7 @@ export default function DashboardScreen() {
                 <Pressable onPress={() => setShareQuiz(item)} style={styles.actionBtn}>
                   <Text style={styles.actionText}>🔗 مشاركة</Text>
                 </Pressable>
-                <Pressable onPress={() => router.push({ pathname: '/(teacher)/results', params: { quizId: item.id } })} style={styles.actionBtn}>
+                <Pressable onPress={() => router.push({ pathname: '/results', params: { quizId: item.id } })} style={styles.actionBtn}>
                   <Text style={styles.actionText}>📊 النتائج</Text>
                 </Pressable>
                 <Pressable onPress={() => setMoveQuiz(item)} style={styles.actionBtn}>

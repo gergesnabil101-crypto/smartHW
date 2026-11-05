@@ -26,8 +26,10 @@ export default function RootLayout() {
           <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
           <Stack.Screen name="(teacher)" options={{ headerShown: false }} />
+          <Stack.Screen name="results" options={{ title: 'نتائج الاختبار' }} />
           <Stack.Screen name="quiz/[id]" options={{ title: 'محرر الاختبار' }} />
           <Stack.Screen name="result/[id]" options={{ title: 'تفاصيل النتيجة' }} />
+          <Stack.Screen name="results" options={{ title: 'نتائج الاختبار' }} />
           <Stack.Screen name="admin/users" options={{ title: 'إدارة المستخدمين' }} />
           <Stack.Screen name="take/[id]" options={{ title: 'الاختبار', headerShown: false }} />
         </Stack>

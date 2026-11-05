@@ -36,10 +36,10 @@ export default function TeacherLayout() {
         }}
       />
       <Tabs.Screen
-        name="results"
+        name="students"
         options={{
-          title: 'النتائج',
-          tabBarIcon: ({ color, size }: any) => <Ionicons name="stats-chart" color={color} size={size} />,
+          title: 'الطلاب',
+          tabBarIcon: ({ color, size }: any) => <Ionicons name="people" color={color} size={size} />,
         }}
       />
       <Tabs.Screen

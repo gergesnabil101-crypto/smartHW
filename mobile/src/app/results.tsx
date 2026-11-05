@@ -1,28 +1,27 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as Print from 'expo-print';
-import { useAuth } from '../../store/AuthContext';
-import { Screen } from '../../components/Screen';
-import { Card } from '../../components/Card';
-import { Input } from '../../components/Input';
-import { Button } from '../../components/Button';
-import { Loading, EmptyState, ErrorState } from '../../components/Feedback';
-import { listTeacherResults, batchRecalculate, reviewResult } from '../../lib/services';
-import type { StudentResult } from '../../types';
-import { colors, radius, typography } from '../../theme';
+import { useAuth } from '../store/AuthContext';
+import { Screen } from '../components/Screen';
+import { Card } from '../components/Card';
+import { Input } from '../components/Input';
+import { Button } from '../components/Button';
+import { Loading, EmptyState, ErrorState } from '../components/Feedback';
+import { listTeacherResults, batchRecalculate, reviewResult } from '../lib/services';
+import type { StudentResult } from '../types';
+import { colors, radius, typography } from '../theme';
 
 export default function ResultsScreen() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { initialized, user, profile } = useAuth();
   const { quizId } = useLocalSearchParams<{ quizId?: string }>();
   const [results, setResults] = useState<StudentResult[] | null>(null);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-  const [showAll, setShowAll] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [recalcing, setRecalcing] = useState(false);
 
@@ -39,25 +38,18 @@ export default function ResultsScreen() {
 
   useEffect(() => { load(); }, [load]);
 
-  // The API returns every teacher's results for admin accounts — default to
-  // the signed-in teacher's own students, with a toggle to see all.
-  const ownsOther = useMemo(
-    () => (results || []).some((r) => r.teacher_id && r.teacher_id !== user?.uid && r.user_id !== user?.uid),
-    [results, user]
-  );
-
   const filtered = useMemo(() => {
     let list = results || [];
     if (quizId) list = list.filter((r) => r.quiz_id === quizId);
-    if (!showAll && user?.uid) {
-      list = list.filter((r) => !r.teacher_id && !r.user_id ? true : r.teacher_id === user.uid || r.user_id === user.uid);
-    }
+    else list = [];
     const q = search.trim().toLowerCase();
     if (!q) return list;
     return list.filter((r) =>
       `${r.student_name} ${r.quiz_title} ${r.center_name ?? ''}`.toLowerCase().includes(q)
     );
-  }, [results, search, showAll, user, quizId]);
+  }, [results, search, quizId]);
+
+  const quizTitle = filtered[0]?.quiz_title || 'الاختبار';
 
   const sendWhatsApp = async (r: StudentResult) => {
     let phone = String(r.parent_phone || r.student_phone || '').trim().replace(/[^0-9+]/g, '');
@@ -66,7 +58,8 @@ export default function ResultsScreen() {
     if (phone.startsWith('01')) phone = '2' + phone;
     else if (phone.startsWith('1') && phone.length === 10) phone = '20' + phone;
     const pct = r.total ? Math.round((Number(r.score) / Number(r.total)) * 100) : 0;
-    const msg = `نتيجة الطالب ${r.student_name} في اختبار «${r.quiz_title || 'اختبار'}»\nالدرجة: ${r.score} / ${r.total} (${pct}%)`;
+    const teacherName = profile?.name || user?.displayName || '';
+    const msg = `نتيجة الطالب ${r.student_name} في اختبار «${r.quiz_title || 'اختبار'}»\nالمدرس: ${teacherName}\nالدرجة: ${r.score} / ${r.total} (${pct}%)`;
     try {
       await reviewResult(String(r.id), { reviewed_and_sent: true, reviewed_and_sent_at: new Date().toISOString() }).catch(() => {});
       await Linking.openURL(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`);
@@ -109,7 +102,7 @@ export default function ResultsScreen() {
     try {
       const esc = (v: unknown) =>
         String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      const title = quizId && filtered[0]?.quiz_title ? `نتائج اختبار: ${filtered[0].quiz_title}` : 'نتائج الطلاب';
+      const title = `نتائج اختبار: ${quizTitle}`;
       const rowsHtml = filtered
         .map((r, i) => {
           const pct = r.total ? Math.round((Number(r.score) / Number(r.total)) * 100) : 0;
@@ -141,7 +134,7 @@ export default function ResultsScreen() {
           <th>#</th><th>اسم الطالب</th><th>الاختبار</th><th>السنتر</th><th>هاتف ولي الأمر</th><th>الدرجة</th><th>النسبة</th><th>التاريخ</th>
         </tr></thead><tbody>${rowsHtml}</tbody></table>
         </body></html>`;
-      const { uri } = await Print.printToFileAsync({ html, width: 842, height: 595 }); // A4 landscape
+      const { uri } = await Print.printToFileAsync({ html, width: 842, height: 595 });
       await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'تصدير النتائج PDF' });
     } catch (e: any) {
       Alert.alert('فشل التصدير', e?.message || 'حاول مرة أخرى.');
@@ -164,6 +157,11 @@ export default function ResultsScreen() {
     }
   };
 
+  if (!initialized) {
+    return <Screen><Loading text="جاري التحميل..." /></Screen>;
+  }
+  if (!user) return <Redirect href="/(auth)/login" />;
+
   if (results === null && !error) {
     return <Screen><Loading text="جاري تحميل النتائج..." /></Screen>;
   }
@@ -171,17 +169,8 @@ export default function ResultsScreen() {
   return (
     <Screen scroll={false}>
       <View style={styles.searchWrap}>
-        <Input placeholder="ابحث باسم الطالب أو الاختبار..." value={search} onChangeText={setSearch} />
-        {ownsOther ? (
-          <View style={styles.filterRow}>
-            <Pressable onPress={() => setShowAll(false)} style={[styles.filterChip, !showAll && styles.filterChipActive]}>
-              <Text style={[styles.filterText, !showAll && styles.filterTextActive]}>طلابي فقط</Text>
-            </Pressable>
-            <Pressable onPress={() => setShowAll(true)} style={[styles.filterChip, showAll && styles.filterChipActive]}>
-              <Text style={[styles.filterText, showAll && styles.filterTextActive]}>كل النتائج</Text>
-            </Pressable>
-          </View>
-        ) : null}
+        {quizTitle ? <Text style={[typography.h3, { textAlign: 'right', marginBottom: 8 }]}>{quizTitle}</Text> : null}
+        <Input placeholder="ابحث باسم الطالب..." value={search} onChangeText={setSearch} />
         <View style={styles.toolbarRow}>
           <Button title={exporting ? 'جاري التصدير...' : '⬇ تصدير CSV'} variant="secondary" onPress={exportCsv} loading={exporting} />
           <Button title="📄 تصدير PDF" variant="secondary" onPress={exportPdf} loading={exporting} />
@@ -197,7 +186,7 @@ export default function ResultsScreen() {
         refreshing={refreshing}
         onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }}
         contentContainerStyle={styles.list}
-        ListEmptyComponent={<EmptyState title="لا توجد نتائج" hint="نتائج الطلاب ستظهر هنا بعد تسليمهم للاختبارات" />}
+        ListEmptyComponent={<EmptyState title="لا توجد نتائج" hint="نتائج طلاب هذا الاختبار ستظهر هنا بعد تسليمهم" />}
         renderItem={({ item }) => {
           const pct = item.total ? Math.round((Number(item.score) / Number(item.total)) * 100) : 0;
           return (
@@ -235,12 +224,7 @@ function formatDate(d: string | number | undefined): string {
 
 const styles = StyleSheet.create({
   searchWrap: { padding: 16, paddingBottom: 4 },
-  filterRow: { flexDirection: 'row-reverse', gap: 8, marginTop: 8 },
-  filterChip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
-  filterChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  filterText: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },
-  filterTextActive: { color: '#fff' },
-  toolbarRow: { flexDirection: 'row-reverse', gap: 8, marginTop: 10 },
+  toolbarRow: { flexDirection: 'row-reverse', gap: 8, marginTop: 10, flexWrap: 'wrap' },
   list: { padding: 16, flexGrow: 1 },
   waBtn: { marginTop: 8, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8, alignItems: 'flex-end' },
   waText: { fontSize: 12, fontWeight: '700', color: colors.success },
