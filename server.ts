@@ -64,6 +64,43 @@ try {
 
 console.log('🔥 Firebase Admin SDK initialized successfully with Firestore database:', firebaseConfig.firestoreDatabaseId || '(default)');
 
+// ---------- Platform pricing & token-billing config (admin-editable) ----------
+// Stored in Firestore doc `platform_config/pricing`. The output multiplier is the
+// profit margin: every generated (output) token is billed to the teacher's plan
+// as N tokens on top of the input tokens.
+interface PricingConfig {
+  flash_output_multiplier: number;
+  pro_output_multiplier: number;
+  flash_price_per_million: number;
+  pro_price_per_million: number;
+  plan_prices: Record<string, { monthly?: number; yearly?: number }>;
+}
+const PRICING_DEFAULTS: PricingConfig = {
+  flash_output_multiplier: 5,
+  pro_output_multiplier: 7,
+  flash_price_per_million: 200,
+  pro_price_per_million: 250,
+  plan_prices: {},
+};
+let pricingConfigCache: PricingConfig = { ...PRICING_DEFAULTS };
+let pricingConfigLoadedAt = 0;
+async function loadPricingConfig(force = false): Promise<PricingConfig> {
+  if (!force && Date.now() - pricingConfigLoadedAt < 60_000) return pricingConfigCache;
+  try {
+    const snap = await adminDb.collection('platform_config').doc('pricing').get();
+    if (snap.exists) {
+      pricingConfigCache = { ...PRICING_DEFAULTS, ...(snap.data() as Partial<PricingConfig>) };
+      pricingConfigLoadedAt = Date.now();
+    }
+  } catch (_) {}
+  return pricingConfigCache;
+}
+const getOutputMultiplier = (isPro: boolean): number =>
+  Number(isPro ? pricingConfigCache.pro_output_multiplier : pricingConfigCache.flash_output_multiplier)
+  || (isPro ? PRICING_DEFAULTS.pro_output_multiplier : PRICING_DEFAULTS.flash_output_multiplier);
+loadPricingConfig(true).catch(() => {});
+setInterval(() => { loadPricingConfig(true).catch(() => {}); }, 60_000).unref();
+
 // Safe SQLite Data Preservation & One-Time Migration to Firestore
 async function preserveAndMigrateSQLite() {
   const dbPath = 'app.db';
@@ -1183,7 +1220,7 @@ function logTokenUsageEvent(params: {
 }) {
   const model = params.model || 'gemini-3.8-flash';
   const isPro = model.includes('pro');
-  const outputMultiplier = isPro ? 7 : 5;
+  const outputMultiplier = getOutputMultiplier(isPro);
   const promptTokens = Math.max(0, params.promptTokens || 0);
   const candidatesTokens = Math.max(0, params.candidatesTokens || 0);
   const cachedTokens = Math.max(0, params.cachedTokens || 0);
@@ -1590,8 +1627,8 @@ async function startServer() {
       const pTokens = result.usageMetadata?.promptTokenCount || 0;
       const cTokens = result.usageMetadata?.candidatesTokenCount || 0;
       const isProModel = modelName.includes('pro');
-      const mult = isProModel ? 7 : 5;
-      const tTokens = pTokens + (cTokens * mult); // 5x for Flash, 7x for Pro
+      const mult = getOutputMultiplier(isProModel);
+      const tTokens = pTokens + (cTokens * mult); // admin-configurable multiplier
       const cachedTokens = result.usageMetadata?.cachedContentTokenCount || 0;
 
       if (result.usageMetadata) {
@@ -3070,8 +3107,8 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
       const promptTok = aiResult.usageMetadata?.promptTokenCount || 0;
       const candTok = aiResult.usageMetadata?.candidatesTokenCount || 0;
       const isProGrading = actualModelUsed.includes('pro');
-      const multGrading = isProGrading ? 7 : 5;
-      const totalTok = promptTok + (candTok * multGrading); // 5x for Flash, 7x for Pro
+      const multGrading = getOutputMultiplier(isProGrading);
+      const totalTok = promptTok + (candTok * multGrading); // admin-configurable multiplier
 
       if (aiResult.usageMetadata) {
         aiResult.usageMetadata.totalTokenCount = totalTok;
@@ -3279,14 +3316,14 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
       const inRate = isUserPro ? 1.25 : 0.75;
       const outRate = isUserPro ? 7.50 : 3.75;
       const cachedRate = isUserPro ? 0.3125 : 0.1875;
-      const outputMult = isUserPro ? 7 : 5;
+      const outputMult = getOutputMultiplier(isUserPro);
 
       // Calculate aggregated metrics from logs + Firestore user stats with model-aware multiplier (7x for Pro, 5x for Flash)
       let totalTokens = matchingLogs.reduce((s, l) => {
         const p = Number(l.prompt_tokens || 0);
         const c = Number(l.candidates_tokens || 0);
         const isLogPro = String(l.model || '').toLowerCase().includes('pro');
-        const lMult = isLogPro ? 7 : 5;
+        const lMult = getOutputMultiplier(isLogPro);
         return s + Math.max(p + (c * lMult), Number(l.total_tokens || 0));
       }, 0);
       let promptTokens = matchingLogs.reduce((s, l) => s + Number(l.prompt_tokens || 0), 0);
@@ -3334,7 +3371,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
         const p = Number(l.prompt_tokens || 0);
         const c = Number(l.candidates_tokens || 0);
         const isLogPro = String(l.model || '').toLowerCase().includes('pro');
-        const lMult = isLogPro ? 7 : 5;
+        const lMult = getOutputMultiplier(isLogPro);
         const billable = p + (c * lMult);
         opGroups[opKey].tokens += Math.max(billable, Number(l.total_tokens || 0));
         opGroups[opKey].prompt += p;
@@ -6223,8 +6260,8 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
                   const pTokens = aiResult.usageMetadata.promptTokenCount || 0;
                   const cTokens = aiResult.usageMetadata.candidatesTokenCount || 0;
                   const isSubPro = actualSubModel && actualSubModel.includes('pro');
-                  const outputMultiplier = isSubPro ? 7 : 5;
-                  const tTokens = pTokens + (cTokens * outputMultiplier); // 5X for Flash, 7X for Pro
+                  const outputMultiplier = getOutputMultiplier(isSubPro);
+                  const tTokens = pTokens + (cTokens * outputMultiplier); // admin-configurable multiplier
                   totalAiTokensInSubmission += tTokens;
                   const cachedTokens = aiResult.usageMetadata.cachedContentTokenCount || 0;
 

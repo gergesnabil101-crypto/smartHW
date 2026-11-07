@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen } from '../../components/Screen';
 import { Card } from '../../components/Card';
@@ -77,14 +77,8 @@ export default function ProfileScreen() {
             ينتهي الاشتراك: {new Date(profile.subscription_end_date).toLocaleDateString('ar-EG')}
           </Text>
         ) : null}
-        <Pressable
-          onPress={() => {
-            const msg = `مرحباً، أريد تفعيل/تجديد اشتراكي في مصحح الواجبات الذكي.\nالاسم: ${profile?.name || ''}\nالبريد: ${user?.email || ''}`;
-            Linking.openURL(`https://wa.me/201063124503?text=${encodeURIComponent(msg)}`).catch(() => {});
-          }}
-          style={styles.renewBtn}
-        >
-          <Text style={styles.renewText}>💳 تفعيل / تجديد الاشتراك عبر واتساب</Text>
+        <Pressable onPress={() => router.push('/subscription')} style={styles.renewBtn}>
+          <Text style={styles.renewText}>💳 الباقات والاشتراك — فعّل أو جدد اشتراكك</Text>
         </Pressable>
       </Card>
 

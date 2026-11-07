@@ -1,6 +1,21 @@
-# نقطة استئناف المشروع — 2026-11-05
+# نقطة استئناف المشروع — 2026-11-07
 
-## الحالة ✅ مكتمل ومرفوع (main @ 5a4487a — Cloud Run rev 00007-jm8)
+## 🚧 عمل جارٍ (WIP — لم يُتحقق منه بعد)
+
+**إعدادات التسعير وهامش ربح التوكنز (قابل للإدارة):**
+- server.ts: أضيف PricingConfig + كاش `platform_config/pricing` + `getOutputMultiplier()` وتم استبدال كل مواضع `? 7 : 5` (7 مواضع) بالدالة القابلة للإعداد
+- **لم يُنفَّذ بعد:** endpoint `GET /api/config/pricing` + `POST /api/admin/pricing` — نزّلهم قرب `/api/admin/update-user` (~سطر 4520)
+- **لم يُنفَّذ بعد:** شاشة أدمن `/admin/pricing` في الموبايل + جلب الأسعار في subscription.tsx + `paymentsMode` في app.json
+- server.ts لم يُفحص tsc ولم يُنشر — المنشور لسه 00007-jm8
+
+**شاشة الباقات (mobile):**
+- `src/lib/plans.ts` — 16 باقة (نظرية/علمية/توكنز فلاش/توكنز برو) بالأسعار
+- `src/app/subscription.tsx` — اختيار شهري/سنوي + نافذة دفع برفع صورة إيصال → `subscription_requests` (نفس تدفق الويب) — مسجل في root Stack، مدخل من زر 💳 في البروفايل
+- **ملاحظة Play:** مسار الإيصال يدوي غير متوافق مع سياسة Google — هيتعطل في نسخة المتجر عبر `extra.paymentsMode` لما نضيف IAP
+
+**مشكلة Metro:** كان 500 بسبب كاش تالف + zombie process على 8081 — اتقتلت وMetro اتشغل بـ `expo start -c`. لو تكرر: امسح `.expo/cache` و`node_modules/.cache` وتأكد من مفيش node قديم على البورت
+
+## الحالة ✅ مكتمل ومرفوع سابقاً (main @ 2c92f2f — Cloud Run rev 00007-jm8)
 
 - Backend على Cloud Run شغال بالكامل: `mosahah-api-609470896445.europe-west1.run.app`
   - كل env vars اتبعتت من `.env.production.yaml` عبر gcloud (حساب gergesnabil101@gmail.com مسجل)
