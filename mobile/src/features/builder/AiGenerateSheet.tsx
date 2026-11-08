@@ -123,7 +123,7 @@ export function AiGenerateSheet({ subject, onQuestions, onClose }: Props) {
     try {
       const res = await aiGenerate<{ text?: string }>({
         contents: { parts: [{ text: buildPrompt(topic.trim(), n, e, subject) }] },
-        operation: 'quiz_generation',
+        operation: 'generate_quiz',
         ...aiMeta,
         config: aiConfig,
       });

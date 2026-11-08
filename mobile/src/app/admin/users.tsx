@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Redirect } from 'expo-router';
+import { Alert, FlatList, Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Redirect, router } from 'expo-router';
 import { Screen } from '../../components/Screen';
 import { Card } from '../../components/Card';
 import { Input } from '../../components/Input';
@@ -177,6 +177,24 @@ export default function AdminUsersScreen() {
     );
   };
 
+  const normWaPhone = (raw?: string): string => {
+    let phone = String(raw || '').trim().replace(/[^0-9+]/g, '');
+    if (phone.startsWith('+')) phone = phone.substring(1);
+    if (phone.startsWith('01')) phone = '2' + phone;
+    else if (phone.startsWith('1') && phone.length === 10) phone = '20' + phone;
+    return phone;
+  };
+
+  const openWhatsApp = (u: AdminUser, welcome = false) => {
+    const phone = normWaPhone(u.phone);
+    if (!phone) return Alert.alert('لا يوجد رقم', 'لا يوجد رقم هاتف مسجل لهذا المستخدم.');
+    const msg = welcome
+      ? `مرحباً ${u.name || ''} 👋\nأهلاً بك في «مصحح الواجبات الذكي» — منصة التصحيح الإلكتروني بالذكاء الاصطناعي.\nاشتراكك: ${STATUS_LABEL[u.subscription_status || 'trial'] || u.subscription_status}\nلأي استفسار نحن في خدمتك.`
+      : undefined;
+    const url = msg ? `https://wa.me/${phone}?text=${encodeURIComponent(msg)}` : `https://wa.me/${phone}`;
+    Linking.openURL(url).catch(() => Alert.alert('خطأ', 'تعذر فتح واتساب.'));
+  };
+
   if (initialized && !user) return <Redirect href="/(auth)/login" />;
   if (initialized && user && !isAdmin && users !== null && !error) {
     return (
@@ -202,7 +220,12 @@ export default function AdminUsersScreen() {
             </Pressable>
           ))}
         </View>
-        <Text style={typography.caption}>{filtered.length} مستخدم</Text>
+        <View style={styles.headRow}>
+          <Text style={typography.caption}>{filtered.length} مستخدم</Text>
+          <Pressable onPress={() => router.push('/admin/pricing')} style={styles.actionChip}>
+            <Text style={[styles.actionText, { color: colors.primary }]}>⚙️ إعدادات التسعير</Text>
+          </Pressable>
+        </View>
       </View>
       {error ? <ErrorState message={error} onRetry={load} /> : null}
       <FlatList
@@ -266,6 +289,12 @@ export default function AdminUsersScreen() {
                   <Pressable onPress={() => deleteAccount(item)} disabled={busy} style={styles.actionChip}>
                     <Text style={[styles.actionText, { color: colors.danger }]}>🗑 حذف</Text>
                   </Pressable>
+                  <Pressable onPress={() => openWhatsApp(item, true)} disabled={busy} style={styles.actionChip}>
+                    <Text style={[styles.actionText, { color: colors.success }]}>👋 ترحيب</Text>
+                  </Pressable>
+                  <Pressable onPress={() => openWhatsApp(item)} disabled={busy} style={styles.actionChip}>
+                    <Text style={[styles.actionText, { color: colors.success }]}>💬 تواصل</Text>
+                  </Pressable>
                 </View>
               ) : null}
             </Card>
@@ -293,6 +322,7 @@ export default function AdminUsersScreen() {
 
 const styles = StyleSheet.create({
   searchWrap: { padding: 16, paddingBottom: 4 },
+  headRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' },
   tabsRow: { flexDirection: 'row-reverse', gap: 8, marginTop: 8, marginBottom: 4 },
   tabChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   tabChipOn: { backgroundColor: colors.primary, borderColor: colors.primary },

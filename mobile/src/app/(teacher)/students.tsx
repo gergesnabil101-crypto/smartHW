@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
-import { collection, doc, getDocs, query, setDoc, where } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDocs, query, setDoc, where } from 'firebase/firestore';
 import { useAuth } from '../../store/AuthContext';
 import { db } from '../../lib/firebase';
 import { listTeacherResults } from '../../lib/services';
@@ -138,6 +138,44 @@ export default function StudentsScreen() {
     }
   };
 
+  const normPhone = (raw?: string): string => {
+    let phone = String(raw || '').trim().replace(/[^0-9+]/g, '');
+    if (phone.startsWith('+')) phone = phone.substring(1);
+    if (phone.startsWith('01')) phone = '2' + phone;
+    else if (phone.startsWith('1') && phone.length === 10) phone = '20' + phone;
+    return phone;
+  };
+
+  const chatWhatsApp = async (s: StudentRow) => {
+    const phone = normPhone(s.phone);
+    if (!phone) return Alert.alert('لا يوجد رقم', 'لا يوجد رقم هاتف مسجل لهذا الطالب.');
+    try {
+      await Linking.openURL(`https://wa.me/${phone}`);
+    } catch {
+      Alert.alert('خطأ', 'تعذر فتح واتساب.');
+    }
+  };
+
+  const deleteStudent = (s: StudentRow) => {
+    if (!s.docId) return Alert.alert('غير متاح', 'هذا الطالب موجود في النتائج فقط ولا يمكن حذفه من سجل الطلاب.');
+    Alert.alert('حذف الطالب', `حذف ${s.name} وكوده من سجل طلابك؟ (نتائجه السابقة لن تُحذف)`, [
+      { text: 'إلغاء', style: 'cancel' },
+      {
+        text: 'حذف', style: 'destructive', onPress: async () => {
+          setBusyId(s.id);
+          try {
+            await deleteDoc(doc(db, 'students', s.docId!));
+            await load();
+          } catch (e: any) {
+            Alert.alert('فشل الحذف', e?.message || 'حاول مرة أخرى.');
+          } finally {
+            setBusyId(null);
+          }
+        },
+      },
+    ]);
+  };
+
   const sendCode = async (s: StudentRow) => {
     let phone = String(s.phone || '').trim().replace(/[^0-9+]/g, '');
     if (!phone) return Alert.alert('لا يوجد رقم', 'لا يوجد رقم هاتف مسجل لهذا الطالب.');
@@ -160,7 +198,7 @@ export default function StudentsScreen() {
   return (
     <Screen scroll={false}>
       <View style={styles.searchWrap}>
-        <Input placeholder="ابحث باسم الطالب أو الهاتف..." value={search} onChangeText={setSearch} />
+        <Input placeholder="ابحث باسم الطالب أو الهاتف أو السنتر/المجموعة..." value={search} onChangeText={setSearch} />
         <Text style={[typography.caption, { textAlign: 'right', marginTop: 6 }]}>
           {filtered.length} طالب — الكود ثابت ويُستخدم في كل اختباراتك المحمية بكود
         </Text>
@@ -199,6 +237,16 @@ export default function StudentsScreen() {
                   loading={busyId === item.id}
                 />
               )}
+              <View style={styles.actionsRow}>
+                <Pressable onPress={() => chatWhatsApp(item)} style={styles.actionChip} disabled={!item.phone}>
+                  <Text style={[styles.actionChipText, { color: item.phone ? colors.success : colors.textMuted }]}>💬 واتساب</Text>
+                </Pressable>
+                {item.docId ? (
+                  <Pressable onPress={() => deleteStudent(item)} style={styles.actionChip} disabled={busyId === item.id}>
+                    <Text style={[styles.actionChipText, { color: colors.danger }]}>🗑 حذف</Text>
+                  </Pressable>
+                ) : null}
+              </View>
             </View>
           </Card>
         )}
@@ -214,4 +262,7 @@ const styles = StyleSheet.create({
   codeBadge: { backgroundColor: colors.primary, borderRadius: radius.md, paddingHorizontal: 10, paddingVertical: 6 },
   codeText: { color: '#fff', fontWeight: '800', fontSize: 14, letterSpacing: 2 },
   actions: { marginTop: 10, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10, alignItems: 'flex-end' },
+  actionsRow: { flexDirection: 'row-reverse', gap: 8, marginTop: 8 },
+  actionChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border },
+  actionChipText: { fontSize: 12, fontWeight: '700' },
 });

@@ -34,7 +34,7 @@ export default function TakeQuizScreen() {
   const [attemptToken, setAttemptToken] = useState('');
   const [answers, setAnswers] = useState<Record<string, number | string>>({});
   const startTimeRef = useRef<number>(0);
-  const [result, setResult] = useState<{ score?: number; total?: number } | null>(null);
+  const [result, setResult] = useState<{ score?: number; total?: number; feedback?: Record<string, any> } | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -136,7 +136,7 @@ export default function TakeQuizScreen() {
         Alert.alert('خطأ', res.error);
         return;
       }
-      setResult({ score: res.score, total: res.total });
+      setResult({ score: res.score, total: res.total, feedback: res.feedback });
       setPhase('done');
     } catch (e: any) {
       Alert.alert('فشل التسليم', e?.message || 'تحقق من الإنترنت وحاول مجدداً.');
@@ -169,6 +169,42 @@ export default function TakeQuizScreen() {
           ) : (
             <Text style={typography.bodySecondary}>سيتم إعلان النتيجة من معلمك بعد المراجعة.</Text>
           )}
+          {showScore && result?.feedback ? (
+            <View style={{ alignSelf: 'stretch', marginTop: 16, gap: 10 }}>
+              {quiz.questions
+                .filter((q) => result.feedback && result.feedback[q.id])
+                .map((q) => {
+                  const fb = result.feedback![q.id];
+                  const ok = fb.isCorrect === true || fb.status === 'correct';
+                  const partial = !ok && Number(fb.score) > 0;
+                  return (
+                    <Card key={q.id} style={{ borderRightWidth: 4, borderRightColor: ok ? colors.success : partial ? colors.warning : colors.danger }}>
+                      <Text style={[typography.h3, { textAlign: 'right' }]} numberOfLines={3}>{q.text}</Text>
+                      <Text style={[typography.caption, { textAlign: 'right', marginTop: 4 }]}>
+                        الدرجة: {Number(fb.score ?? 0)} / {q.points || 1} — {ok ? 'صحيحة ✅' : partial ? 'صحيحة جزئياً 🟡' : 'تحتاج مراجعة ❌'}
+                      </Text>
+                      {fb.feedback ? (
+                        <Text style={[typography.body, { textAlign: 'right', marginTop: 8 }]}>{String(fb.feedback)}</Text>
+                      ) : null}
+                      {Array.isArray(fb.steps) && fb.steps.length > 0 ? (
+                        <View style={{ marginTop: 8 }}>
+                          {fb.steps.map((s: any, i: number) => (
+                            <Text key={i} style={[typography.caption, { textAlign: 'right' }]}>
+                              • {typeof s === 'string' ? s : s?.text || s?.description || JSON.stringify(s)}
+                            </Text>
+                          ))}
+                        </View>
+                      ) : null}
+                      {fb.correctExample ? (
+                        <Text style={[typography.caption, { textAlign: 'right', marginTop: 8, color: colors.success }]}>
+                          الإجابة النموذجية: {String(fb.correctExample)}
+                        </Text>
+                      ) : null}
+                    </Card>
+                  );
+                })}
+            </View>
+          ) : null}
         </View>
       </Screen>
     );

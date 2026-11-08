@@ -2,7 +2,7 @@
 export interface PlanOption {
   id: string;
   name: string;
-  group: 'theory' | 'science' | 'tokens' | 'pro_tokens';
+  group: 'tokens' | 'pro_tokens';
   monthlyPrice: number;
   yearlyPrice: number;
   popular?: boolean;
@@ -10,22 +10,6 @@ export interface PlanOption {
 }
 
 export const PLANS: PlanOption[] = [
-  // المواد النظرية واللغات
-  { id: 'theory_200', name: 'الباقة الأساسية', group: 'theory', monthlyPrice: 200, yearlyPrice: 2000,
-    features: ['أسئلة اختيار وصح/خطأ غير محدودة', 'تصحيح فوري لكل الطلاب', 'طلاب واختبارات ومجلدات بلا حدود', 'تقارير نتائج تفصيلية', 'بدون أسئلة مقالية'] },
-  { id: 'theory_250', name: 'الباقة المتقدمة', group: 'theory', monthlyPrice: 250, yearlyPrice: 2500, popular: true,
-    features: ['كل مميزات الأساسية', 'حتى 5 أسئلة مقالية لكل اختبار', 'تصحيح AI مع درجات الخطوات', 'استخراج أسئلة من Word وصور', 'إرسال واتساب جماعي'] },
-  { id: 'theory_300', name: 'الباقة الاحترافية', group: 'theory', monthlyPrice: 300, yearlyPrice: 3000,
-    features: ['كل مميزات المتقدمة', 'حتى 15 سؤال مقالي لكل اختبار', 'استخراج غير محدود من PDF ممسوح', 'مراجعة شاملة للإجابات المقالية'] },
-
-  // المواد العلمية والرياضيات
-  { id: 'science_250', name: 'الأساسية العلمية', group: 'science', monthlyPrice: 250, yearlyPrice: 2500,
-    features: ['أسئلة علمية ورياضية', 'نموذج Gemini Pro للاستدلال العلمي', 'معادلات ورموز فيزيائية وكيميائية', 'قص الرسومات الهندسية تلقائياً', 'طلاب واختبارات بلا حدود'] },
-  { id: 'science_500', name: 'المتقدمة العلمية', group: 'science', monthlyPrice: 500, yearlyPrice: 5000, popular: true,
-    features: ['كل مميزات الأساسية العلمية', 'حتى 5 مسائل/أسئلة مقالية مع خطوات الحل', 'توزيع الدرجات على خطوات الحل', 'استخراج فائق للرسومات البيانية'] },
-  { id: 'science_750', name: 'الاحترافية العلمية', group: 'science', monthlyPrice: 750, yearlyPrice: 7500,
-    features: ['كل مميزات المتقدمة العلمية', 'حتى 15 مسألة مقالية لكل اختبار', 'استخراج عالي الدقة من الكتب الممسوحة', 'أولوية معالجة ودعم فني خاص'] },
-
   // باقات توكنز — فلاش (200 ج/مليون)
   { id: 'token_1M', name: 'باقة 1 مليون توكن', group: 'tokens', monthlyPrice: 200, yearlyPrice: 2000,
     features: ['تكفي ~2,000 إجابة مقالية شهرياً', 'نموذج فلاش فائق السرعة'] },
@@ -52,8 +36,6 @@ export const PLANS: PlanOption[] = [
 ];
 
 export const PLAN_GROUPS: { key: PlanOption['group']; title: string }[] = [
-  { key: 'theory', title: 'باقات المواد النظرية واللغات' },
-  { key: 'science', title: 'باقات المواد العلمية والرياضيات' },
-  { key: 'tokens', title: 'باقات التوكنز — فلاش ⚡' },
-  { key: 'pro_tokens', title: 'باقات التوكنز — برو 👑' },
+  { key: 'tokens', title: 'باقات التوكنز — فلاش ⚡ (200 ج / مليون)' },
+  { key: 'pro_tokens', title: 'باقات التوكنز — برو 👑 (250 ج / مليون)' },
 ];

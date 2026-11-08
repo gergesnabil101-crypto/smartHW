@@ -4529,6 +4529,48 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
   });
 
   // --- Dedicated Admin API: Instantly Update Single User State (Suspension, Deactivation, Tokens, Status) ---
+  // ---------- Platform pricing config (admin controls profit margin & plan prices) ----------
+  app.get('/api/config/pricing', authenticateFirebaseUser, async (req: any, res: any) => {
+    try {
+      const pricing = await loadPricingConfig(true);
+      res.json({ pricing });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/admin/pricing', authenticateFirebaseUser, requireAdmin, async (req: any, res: any) => {
+    try {
+      const body = req.body || {};
+      const next: any = {};
+      for (const key of ['flash_output_multiplier', 'pro_output_multiplier', 'flash_price_per_million', 'pro_price_per_million']) {
+        const v = Number(body[key]);
+        if (v > 0 && v < 10000) next[key] = v;
+      }
+      if (body.plan_prices && typeof body.plan_prices === 'object' && !Array.isArray(body.plan_prices)) {
+        const pp: Record<string, { monthly?: number; yearly?: number }> = {};
+        for (const [planId, v] of Object.entries(body.plan_prices as Record<string, any>)) {
+          const entry: { monthly?: number; yearly?: number } = {};
+          const m = Number((v as any)?.monthly);
+          const y = Number((v as any)?.yearly);
+          if (m > 0 && m < 1000000) entry.monthly = m;
+          if (y > 0 && y < 10000000) entry.yearly = y;
+          if (entry.monthly || entry.yearly) pp[String(planId)] = entry;
+        }
+        next.plan_prices = pp;
+      }
+      if (!Object.keys(next).length) {
+        return res.status(400).json({ error: 'لم يتم إرسال قيم تسعير صالحة.' });
+      }
+      await adminDb.collection('platform_config').doc('pricing').set(next, { merge: true });
+      pricingConfigCache = { ...pricingConfigCache, ...next };
+      pricingConfigLoadedAt = Date.now();
+      res.json({ success: true, pricing: pricingConfigCache });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.post('/api/admin/update-user', authenticateFirebaseUser, requireAdmin, async (req: any, res: any) => {
     try {
       const { userId, email, updates } = req.body;
@@ -5186,19 +5228,9 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
       const cycle = subRequest.billing_cycle || 'monthly';
       const days = cycle === 'yearly' ? 365 : 30;
 
-      const userDoc = await adminDb.collection('users').doc(userId).get();
-      let baseDate = new Date();
-      if (userDoc.exists) {
-        const userData = userDoc.data() as any;
-        if (userData.subscription_end_date) {
-          const parsedDate = new Date(userData.subscription_end_date);
-          if (parsedDate > new Date()) {
-            baseDate = parsedDate;
-          }
-        }
-      }
-
-      const endDate = new Date(baseDate.getTime() + days * 24 * 60 * 60 * 1000);
+      // Renewal always starts a fresh billing period from today — days must not
+      // stack on top of any remaining balance (a 30-day plan = 30 days max).
+      const endDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 
       const batch = adminDb.batch();
       batch.update(adminDb.collection('subscription_requests').doc(requestId), {

@@ -129,5 +129,17 @@ export const adminUpdateUser = (userId: string, email: string | undefined, updat
 export const adminDeleteUser = (userId: string, email?: string, name?: string) =>
   api.post<{ success: boolean }>(`/api/users/${encodeURIComponent(userId)}/delete`, { email, name });
 
+export interface PricingConfig {
+  flash_output_multiplier?: number;
+  pro_output_multiplier?: number;
+  flash_price_per_million?: number;
+  pro_price_per_million?: number;
+  plan_prices?: Record<string, { monthly?: number; yearly?: number }>;
+}
+export const getPricing = () =>
+  api.get<{ pricing: PricingConfig }>('/api/config/pricing').then((r) => r?.pricing || {});
+export const adminUpdatePricing = (data: PricingConfig) =>
+  api.post<{ success: boolean; pricing: PricingConfig }>('/api/admin/pricing', data as Record<string, unknown>, { idempotent: true });
+
 // ---------- Misc ----------
 export const healthCheck = () => api.get<{ ok: boolean }>('/api/health', { auth: false });

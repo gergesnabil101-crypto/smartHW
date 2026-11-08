@@ -52,6 +52,7 @@
     ],
     "extra": {
       "apiBaseUrl": "https://mosahah-api-609470896445.europe-west1.run.app",
+      "paymentsMode": "iap",
       "router": {}
     },
     "experiments": {

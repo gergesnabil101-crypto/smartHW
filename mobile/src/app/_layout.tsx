@@ -31,6 +31,7 @@ export default function RootLayout() {
           <Stack.Screen name="result/[id]" options={{ title: 'تفاصيل النتيجة' }} />
           <Stack.Screen name="subscription" options={{ title: 'الباقات والاشتراك' }} />
           <Stack.Screen name="admin/users" options={{ title: 'إدارة المستخدمين' }} />
+          <Stack.Screen name="admin/pricing" options={{ title: 'إعدادات التسعير' }} />
           <Stack.Screen name="take/[id]" options={{ title: 'الاختبار', headerShown: false }} />
         </Stack>
       </AuthProvider>

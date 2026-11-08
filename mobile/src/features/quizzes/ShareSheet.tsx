@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import QRCode from 'react-native-qrcode-svg';
 import { Button } from '../../components/Button';
 import { colors, radius, typography } from '../../theme';
@@ -12,6 +14,9 @@ interface Props {
 
 /** Share sheet body: QR code + copy link + WhatsApp. Rendered inside a Modal by the caller. */
 export function ShareSheet({ quizTitle, shareUrl }: Props) {
+  const qrRef = useRef<any>(null);
+  const [saving, setSaving] = useState(false);
+
   const copy = async () => {
     await Clipboard.setStringAsync(shareUrl);
     Alert.alert('تم النسخ', 'تم نسخ رابط الاختبار — أرسله لطلابك.');
@@ -24,15 +29,34 @@ export function ShareSheet({ quizTitle, shareUrl }: Props) {
     );
   };
 
+  const downloadQr = () => {
+    if (!qrRef.current?.toDataURL) return;
+    setSaving(true);
+    qrRef.current.toDataURL(async (data: string) => {
+      try {
+        const path = `${FileSystem.cacheDirectory}quiz-qr-${Date.now()}.png`;
+        await FileSystem.writeAsStringAsync(path, data, { encoding: 'base64' });
+        await Sharing.shareAsync(path, { mimeType: 'image/png', dialogTitle: 'حفظ رمز QR للاختبار' });
+      } catch (e: any) {
+        Alert.alert('فشل حفظ QR', e?.message || 'حاول مرة أخرى.');
+      } finally {
+        setSaving(false);
+      }
+    });
+  };
+
   return (
     <View style={styles.wrap}>
       <View style={styles.qrBox}>
-        <QRCode value={shareUrl} size={200} backgroundColor="#fff" />
+        <QRCode value={shareUrl} size={200} backgroundColor="#fff" getRef={qrRef} />
       </View>
       <Text style={[typography.caption, styles.url]} numberOfLines={1}>{shareUrl}</Text>
       <View style={styles.row}>
         <Button title="نسخ الرابط" onPress={copy} style={{ flex: 1 }} />
         <Button title="واتساب" variant="secondary" onPress={whatsapp} style={{ flex: 1 }} />
+      </View>
+      <View style={styles.row}>
+        <Button title={saving ? 'جاري الحفظ...' : '⬇ تحميل QR'} variant="secondary" onPress={downloadQr} loading={saving} style={{ flex: 1 }} />
       </View>
     </View>
   );

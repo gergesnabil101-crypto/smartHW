@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Alert, Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Redirect } from 'expo-router';
+import Constants from 'expo-constants';
 import * as ImagePicker from 'expo-image-picker';
 import { doc, setDoc, updateDoc, collection } from 'firebase/firestore';
 import { useAuth } from '../store/AuthContext';
@@ -14,6 +15,9 @@ import { colors, radius, typography } from '../theme';
 
 const SUPPORT_PHONE = '201063124503';
 const MAX_RECEIPT_CHARS = 2_900_000;
+// 'iap' = Google Play Billing only (store-compliant). 'manual' = receipt upload
+// flow used on the web. Controlled via expo.extra.paymentsMode in app.json.
+const PAYMENTS_MODE = (Constants.expoConfig?.extra as any)?.paymentsMode === 'manual' ? 'manual' : 'iap';
 
 export default function SubscriptionScreen() {
   const { initialized, user, profile, refreshProfile } = useAuth();
@@ -137,15 +141,29 @@ export default function SubscriptionScreen() {
               {selected?.features.map((f, i) => (
                 <Text key={i} style={styles.feature}>• {f}</Text>
               ))}
-              <Text style={styles.payHint}>
-                حوّل المبلغ على فودافون كاش / إنستاباي على الرقم المعتمد من الإدارة، ثم ارفع صورة الإيصال وسيتم تفعيل اشتراكك بعد المراجعة.
-              </Text>
-              {receipt ? (
-                <Image source={{ uri: receipt }} style={styles.receiptImg} resizeMode="cover" />
-              ) : null}
-              <Button title={receipt ? '📷 تغيير صورة الإيصال' : '📷 رفع صورة الإيصال'} variant="secondary" onPress={pickReceipt} />
-              <View style={{ height: 8 }} />
-              <Button title={submitting ? 'جاري الإرسال...' : '✅ إرسال طلب الاشتراك'} onPress={submitRequest} loading={submitting} />
+              {PAYMENTS_MODE === 'iap' ? (
+                <>
+                  <Text style={styles.payHint}>
+                    الاشتراك يتم عبر Google Play داخل التطبيق — سيتم تفعيل الدفع فور إتاحة منتجات الاشتراك على المتجر. للاستفسار أو الحالات الخاصة تواصل معنا على واتساب.
+                  </Text>
+                  <Button title="💳 اشترك عبر Google Play" onPress={() => Alert.alert('الاشتراك عبر Google Play', 'سيتم تفعيل الشراء داخل التطبيق مع نشر منتجات الاشتراك على Play Console. للتفعيل الفوري تواصل مع الإدارة عبر واتساب.', [
+                    { text: 'حسناً', style: 'cancel' },
+                    { text: 'واتساب', onPress: askWhatsApp },
+                  ])} />
+                </>
+              ) : (
+                <>
+                  <Text style={styles.payHint}>
+                    حوّل المبلغ على فودافون كاش / إنستاباي على الرقم المعتمد من الإدارة، ثم ارفع صورة الإيصال وسيتم تفعيل اشتراكك بعد المراجعة.
+                  </Text>
+                  {receipt ? (
+                    <Image source={{ uri: receipt }} style={styles.receiptImg} resizeMode="cover" />
+                  ) : null}
+                  <Button title={receipt ? '📷 تغيير صورة الإيصال' : '📷 رفع صورة الإيصال'} variant="secondary" onPress={pickReceipt} />
+                  <View style={{ height: 8 }} />
+                  <Button title={submitting ? 'جاري الإرسال...' : '✅ إرسال طلب الاشتراك'} onPress={submitRequest} loading={submitting} />
+                </>
+              )}
               <View style={{ height: 8 }} />
               <Button title="إلغاء" variant="secondary" onPress={() => { setSelected(null); setReceipt(null); }} />
             </ScrollView>
