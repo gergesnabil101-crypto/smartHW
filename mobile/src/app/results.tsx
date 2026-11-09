@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, FlatList, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -21,6 +21,8 @@ export default function ResultsScreen() {
   const [results, setResults] = useState<StudentResult[] | null>(null);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [centerFilter, setCenterFilter] = useState('all');
+  const [centerPickerOpen, setCenterPickerOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [recalcing, setRecalcing] = useState(false);
@@ -38,16 +40,35 @@ export default function ResultsScreen() {
 
   useEffect(() => { load(); }, [load]);
 
-  const filtered = useMemo(() => {
+  const quizResults = useMemo(() => {
     let list = results || [];
     if (quizId) list = list.filter((r) => r.quiz_id === quizId);
     else list = [];
+    return list;
+  }, [results, quizId]);
+
+  const uniqueCenters = useMemo(() => {
+    const set = new Set<string>();
+    quizResults.forEach((r) => {
+      const name = String(r.center_name || '').trim();
+      if (name) set.add(name);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'));
+  }, [quizResults]);
+
+  const filtered = useMemo(() => {
+    let list = quizResults;
+    if (centerFilter !== 'all') {
+      list = centerFilter === '__none__'
+        ? list.filter((r) => !String(r.center_name || '').trim())
+        : list.filter((r) => String(r.center_name || '').trim() === centerFilter);
+    }
     const q = search.trim().toLowerCase();
     if (!q) return list;
     return list.filter((r) =>
       `${r.student_name} ${r.quiz_title} ${r.center_name ?? ''}`.toLowerCase().includes(q)
     );
-  }, [results, search, quizId]);
+  }, [quizResults, search, centerFilter]);
 
   const quizTitle = filtered[0]?.quiz_title || 'الاختبار';
 
@@ -88,7 +109,11 @@ export default function ResultsScreen() {
       ];
       const path = `${FileSystem.cacheDirectory}results-${Date.now()}.csv`;
       await FileSystem.writeAsStringAsync(path, '﻿' + rows.join('\n'));
-      await Sharing.shareAsync(path, { mimeType: 'text/csv', dialogTitle: 'تصدير النتائج' });
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(path, { mimeType: 'text/csv', dialogTitle: 'تصدير النتائج' });
+      } else {
+        Alert.alert('المشاركة غير متاحة', 'تم إنشاء الملف لكن مشاركة الملفات غير مدعومة على هذا الجهاز.');
+      }
     } catch (e: any) {
       Alert.alert('فشل التصدير', e?.message || 'حاول مرة أخرى.');
     } finally {
@@ -134,10 +159,24 @@ export default function ResultsScreen() {
           <th>#</th><th>اسم الطالب</th><th>الاختبار</th><th>السنتر</th><th>هاتف ولي الأمر</th><th>الدرجة</th><th>النسبة</th><th>التاريخ</th>
         </tr></thead><tbody>${rowsHtml}</tbody></table>
         </body></html>`;
-      const { uri } = await Print.printToFileAsync({ html, width: 842, height: 595 });
-      await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'تصدير النتائج PDF' });
+      try {
+        const { uri } = await Print.printToFileAsync({ html, width: 842, height: 595 });
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'تصدير النتائج PDF' });
+        } else {
+          await Print.printAsync({ html });
+        }
+      } catch (innerErr: any) {
+        // Fallback: open the system print dialog — its "Save as PDF" option always
+        // works even when direct file rendering is unavailable on the device.
+        try {
+          await Print.printAsync({ html });
+        } catch {
+          throw innerErr;
+        }
+      }
     } catch (e: any) {
-      Alert.alert('فشل التصدير', e?.message || 'حاول مرة أخرى.');
+      Alert.alert('فشل التصدير', `تعذر إنشاء ملف PDF.\n${e?.message || e || 'خطأ غير معروف'}`);
     } finally {
       setExporting(false);
     }
@@ -171,6 +210,38 @@ export default function ResultsScreen() {
       <View style={styles.searchWrap}>
         {quizTitle ? <Text style={[typography.h3, { textAlign: 'right', marginBottom: 8 }]}>{quizTitle}</Text> : null}
         <Input placeholder="ابحث باسم الطالب..." value={search} onChangeText={setSearch} />
+        <Pressable style={styles.selectBox} onPress={() => setCenterPickerOpen(true)}>
+          <Text style={styles.selectLabel}>السنتر / المجموعة:</Text>
+          <Text style={styles.selectValue} numberOfLines={1}>
+            {centerFilter === 'all' ? 'الكل' : centerFilter === '__none__' ? 'بدون سنتر' : centerFilter}
+          </Text>
+          <Text style={styles.selectArrow}>▾</Text>
+        </Pressable>
+        <Modal visible={centerPickerOpen} transparent animationType="fade" onRequestClose={() => setCenterPickerOpen(false)}>
+          <Pressable style={styles.modalBackdrop} onPress={() => setCenterPickerOpen(false)}>
+            <View style={styles.modalCard}>
+              <Text style={styles.modalTitle}>اختر السنتر / المجموعة</Text>
+              <FlatList
+                data={['all', ...uniqueCenters, '__none__']}
+                keyExtractor={(c) => c}
+                style={{ maxHeight: 340 }}
+                renderItem={({ item }) => {
+                  const label = item === 'all' ? 'الكل' : item === '__none__' ? 'بدون سنتر' : item;
+                  const active = centerFilter === item;
+                  return (
+                    <Pressable
+                      style={[styles.optionRow, active && styles.optionRowActive]}
+                      onPress={() => { setCenterFilter(item); setCenterPickerOpen(false); }}
+                    >
+                      <Text style={[styles.optionText, active && styles.optionTextActive]}>{label}</Text>
+                      {active ? <Text style={styles.optionCheck}>✓</Text> : null}
+                    </Pressable>
+                  );
+                }}
+              />
+            </View>
+          </Pressable>
+        </Modal>
         <View style={styles.toolbarRow}>
           <Button title={exporting ? 'جاري التصدير...' : '⬇ تصدير CSV'} variant="secondary" onPress={exportCsv} loading={exporting} />
           <Button title="📄 تصدير PDF" variant="secondary" onPress={exportPdf} loading={exporting} />
@@ -224,6 +295,22 @@ function formatDate(d: string | number | undefined): string {
 
 const styles = StyleSheet.create({
   searchWrap: { padding: 16, paddingBottom: 4 },
+  selectBox: {
+    flexDirection: 'row-reverse', alignItems: 'center', gap: 6, marginTop: 10,
+    borderWidth: 1, borderColor: colors.border, borderRadius: radius.md,
+    backgroundColor: colors.surface, paddingHorizontal: 12, paddingVertical: 10,
+  },
+  selectLabel: { fontSize: 13, fontWeight: '700', color: colors.textMuted },
+  selectValue: { flex: 1, fontSize: 14, fontWeight: '600', color: colors.text, textAlign: 'right' },
+  selectArrow: { fontSize: 14, color: colors.textMuted },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 24 },
+  modalCard: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: 16, maxHeight: '80%' },
+  modalTitle: { fontSize: 16, fontWeight: '800', color: colors.text, textAlign: 'right', marginBottom: 10 },
+  optionRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 10, borderRadius: radius.sm },
+  optionRowActive: { backgroundColor: colors.primarySoft },
+  optionText: { fontSize: 14, fontWeight: '600', color: colors.text, textAlign: 'right', flex: 1 },
+  optionTextActive: { color: colors.primary },
+  optionCheck: { fontSize: 15, fontWeight: '800', color: colors.primary },
   toolbarRow: { flexDirection: 'row-reverse', gap: 8, marginTop: 10, flexWrap: 'wrap' },
   list: { padding: 16, flexGrow: 1 },
   waBtn: { marginTop: 8, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8, alignItems: 'flex-end' },

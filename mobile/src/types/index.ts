@@ -119,6 +119,12 @@ export interface UserProfile {
   tokens_used?: number;
   tokens_used_today?: number;
   extra_tokens?: number;
+  tokens_limit?: number;
+  token_balance?: number;
+  total_tokens?: number;
+  custom_tokens_millions?: number;
+  billing_cycle?: string;
+  hasPendingSubscription?: boolean;
   preferred_ai_model?: 'flash' | 'pro';
   created_at?: unknown;
 }

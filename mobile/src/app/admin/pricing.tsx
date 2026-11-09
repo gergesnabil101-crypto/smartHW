@@ -81,12 +81,12 @@ export default function AdminPricingScreen() {
 
   if (initialized && !user) return <Redirect href="/(auth)/login" />;
   if (!(user as any)?.isAdmin) {
-    return <Screen><ErrorState title="غير مصرح" message="هذه الصفحة متاحة لمديري المنصة فقط." /></Screen>;
+    return <Screen><ErrorState message="غير مصرح — هذه الصفحة متاحة لمديري المنصة فقط." /></Screen>;
   }
 
   return (
     <Screen>
-      <Text style={[typography.title, { marginBottom: 4 }]}>⚙️ إعدادات التسعير</Text>
+      <Text style={[typography.h2, { marginBottom: 4 }]}>⚙️ إعدادات التسعير</Text>
       <Text style={[typography.caption, styles.hint]}>
         مضاعف التوكنز هو هامش الربح: عدد التوكنز المحتسبة على العميل مقابل كل توكن يستهلكه النموذج فعلياً.
       </Text>
@@ -94,21 +94,21 @@ export default function AdminPricingScreen() {
       {loading ? (
         <Loading />
       ) : error ? (
-        <ErrorState title="خطأ" message={error} onRetry={load} />
+        <ErrorState message={error} onRetry={load} />
       ) : (
         <>
           <Card>
-            <Text style={typography.subtitle}>🪙 هامش ربح التوكنز</Text>
+            <Text style={typography.h3}>🪙 هامش ربح التوكنز</Text>
             <Input label="مضاعف فلاش (توكنز محتسبة لكل توكن فعلي)" value={flashMult} onChangeText={setFlashMult} keyboardType="decimal-pad" />
             <Input label="مضاعف برو" value={proMult} onChangeText={setProMult} keyboardType="decimal-pad" />
           </Card>
           <Card>
-            <Text style={typography.subtitle}>💵 سعر المليون توكن (جنيه)</Text>
+            <Text style={typography.h3}>💵 سعر المليون توكن (جنيه)</Text>
             <Input label="سعر مليون توكن — فلاش" value={flashPrice} onChangeText={setFlashPrice} keyboardType="decimal-pad" />
             <Input label="سعر مليون توكن — برو" value={proPrice} onChangeText={setProPrice} keyboardType="decimal-pad" />
           </Card>
           <Card>
-            <Text style={typography.subtitle}>📦 أسعار الباقات (شهري / سنوي)</Text>
+            <Text style={typography.h3}>📦 أسعار الباقات (شهري / سنوي)</Text>
             {PLANS.map((p) => (
               <View key={p.id} style={styles.planRow}>
                 <Text style={styles.planName} numberOfLines={1}>{p.name}</Text>

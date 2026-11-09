@@ -1,25 +1,27 @@
-# نقطة استئناف المشروع — 2026-11-08
+# نقطة استئناف المشروع — 2026-11-09
 
-## 🚧 دفعة اليوم (تم التنفيذ — يُستكمل غداً: فحص + نشر + تجربة)
+## ✅ دفعة 2026-11-09 (منشورة — Cloud Run rev 00008-92t)
 
-**إصلاحات الدفعة الكبيرة (طلبات المستخدم الأخيرة):**
-- **أيام الاشتراك**: server.ts — الموافقة على التجديد صارت `endDate = الآن + days` (لا ترحيل على باقي قديم) — يحل مشكلة 107/53 يوم. **يحتاج نشر Cloud Run**
-- **توليد AI «غير مصرح»**: AiGenerateSheet بيبعت `operation: 'generate_quiz'` (كان `quiz_generation`) — يطابق القائمة البيضاء للسيرفر
-- **تصحيح المقالي للطالب**: take/[id].tsx بيخزن `res.feedback` ويعرض تفاصيل التصحيح لكل سؤال (الدرجة/الملاحظات/الإجابة النموذجية)
-- **تحميل QR**: ShareSheet فيه `getRef`+`toDataURL` → `expo-file-system/legacy` → `Sharing.shareAsync` (زر ⬇ تحميل QR)
-- **الباقات**: plans.ts — توكنز فقط (5 فلاش 200ج/مليون + 5 برو 250ج/مليون)، حذف النظرية/العلمية من الموبايل (الويب محفوظ)
-- **دفع Google Play**: `app.json` فيه `extra.paymentsMode:'iap'` — subscription.tsx يخفي مسار الإيصال في نسخة المتجر ويعرض زر «اشترك عبر Google Play» (IAP نفسه لم يُربط بمنتجات Play Console بعد)
-- **أدمن**: users.tsx — زرا 👋 ترحيب واتساب و💬 تواصل لكل مشترك + زر ⚙️ إعدادات التسعير في الرأس
-- **الطلاب**: students.tsx — بحث بالسنتر/المجموعة موجود + 💬 واتساب + 🗑 حذف (docId فقط — المشتقون من النتائج لا يُحذفون) + تحديث placeholder البحث
-- **التسعير**: server.ts — `GET /api/config/pricing` + `POST /api/admin/pricing` (تخزين `platform_config/pricing`) + mobile `admin/pricing.tsx` (مضاعف فلاش/برو = هامش الربح + سعر المليون + أسعار الباقات شهري/سنوي) + خدمات `getPricing/adminUpdatePricing`
+- **أيام الاشتراك**: التجديد `endDate = الآن + days` — لا ترحيل (حل مشكلة 107/53 يوم)
+- **التسعير للأدمن**: `/admin/pricing` (مضاعف فلاش/برو = هامش الربح + سعر المليون + أسعار الباقات) → `POST /api/admin/pricing` يخزن `platform_config/pricing` — زر ⚙️ في رأس `/admin/users`
+- **طلبات الاشتراك**: شاشة `/admin/requests` — طلبات pending مع صورة الإيصال (تكبير بالضغط) + اسم الباقة + زر ✅ تفعيل تلقائي → `/api/subscription-requests/approve` + 🗑 رفض → DELETE — زر 📋 في رأس `/admin/users`
+- **ترقية فلاش→برو**: subscription.tsx — بطاقة ترقية تحسب فارق السعر على التوكنز المتبقية (50ج/مليون افتراضي) + إيصال → `plan:'upgrade_to_pro'` + `custom_details` JSON (متوافق مع قواعد Firestore — `billing_cycle:'monthly'` وحقول whitelisted فقط) — الموافقة تضبط `preferred_ai_model:'gemini_pro'`
+- **دقة الرموز العلمية**: برومبت الاستخراج في AiGenerateSheet عزّز دقة الأرقام السفلية/العلوية/LaTeX/الحروف اليونانية/الوحدات + قاعدة موحدة في برومبتات التصحيح الثلاثة بالسيرفر: «لا صفر لإجابة جزئية + تقسيم الدرجة على الأجزاء + توضيح التقسيم في feedback/steps»
+- **PDF**: fallback لـ `Print.printAsync` (حوار الطباعة → Save as PDF) عند فشل `printToFileAsync` + رسالة الخطأ الحقيقية
+- **PDF/النتائج**: فلتر السنتر/المجموعة المنسدل كان موجوداً مسبقاً في results.tsx ✔
+- **أدمن المستخدمين**: 👋 ترحيب + 💬 تواصل واتساب لكل مشترك
+- **الطلاب**: بحث بالسنتر + 💬 واتساب + 🗑 حذف
+- **AI «غير مصرح»**: `generate_quiz` بدل `quiz_generation` ✔
+- **مقالي**: الطالب يشوف التصحيح المفصل (feedback/steps) ✔
+- **QR**: زر ⬇ تحميل ✔
+- **الباقات**: توكنز فقط + `paymentsMode:'iap'` لنسخة المتجر
 
-## ⚠️ متبقي لهذه الدفعة (ابدأ من هنا غداً)
+## ⚠️ متبقي للدفعة
 
-1. **فحص**: `npx tsc --noEmit` في mobile + build سريع لـ server.ts
-2. **نشر السيرفر** على Cloud Run (تغييرات أيام الاشتراك + التسعير)
-3. **subscription.tsx**: جلب `plan_prices` من `getPricing()` وعرض الأسعار المخصصة (اختياري — حالياً يعرض ثوابت plans.ts)
-4. **تجربة Expo Go**: توليد AI / عرض تصحيح مقالي / تحميل QR / واتساب أدمن / تسعير أدمن
-5. **IAP حقيقي**: ربط منتجات Play Console (expo-in-app-purchases + development build — Expo Go لا يدعمه)
+1. `npx tsc --noEmit` (جارٍ — الجهاز بطيء) + commit/push
+2. **تجربة Expo Go**: Metro شغال على `:8081` وضع CI — جرب: توليد AI / تصحيح مقالي / QR تحميل / PDF / طلبات الأدمن / التسعير / الترقية
+3. **subscription.tsx**: عرض أسعار `plan_prices` المخصصة من getPricing (حالياً يعرض ثوابت plans.ts — التسعير المخصص محفوظ في السيرفر فقط)
+4. **IAP حقيقي**: منتجات Play Console + expo-in-app-purchases (development build)
 
 ## الحالة ✅ مكتمل ومرفوع سابقاً (main @ 2c92f2f — Cloud Run rev 00007-jm8)
 

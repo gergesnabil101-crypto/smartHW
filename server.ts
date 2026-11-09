@@ -2648,9 +2648,32 @@ async function startServer() {
        * اكتب في التغذية الراجعة ("feedback") تعليقاً مشجعاً يوضح الجزء الصحيح الذي نال عليه الطالب درجات، والجزء الناقص أو سبب الخصم بلغة عربية فصحى راقية.
 ` : '';
 
+    const symbolFidelityEn = `
+🔬 MANDATORY HIGH-FIDELITY SCIENTIFIC NOTATION RULE:
+- Read and transcribe scientific, math, physics & chemistry notation with maximum precision: element symbols & formulas with correct casing (Na, CO2, H2O, Fe3O4), ionic charges (Cu²⁺, SO4²⁻), balancing coefficients vs subscripts, exponents, roots, fractions, limits, integrals, trig functions, physics units (m/s, N, J, mol, g), arrows & symbols (→, Δ, ±, ≈).
+- NEVER distort or invent notation not present in the student's answer; interpret ambiguous writing charitably under sound science before judging.
+
+📊 MANDATORY MARK-DIVISION & NO-ZERO RULE:
+- Divide the question's total marks across the parts required by the model answer (steps, items, blanks, products) and reflect each part in the "steps" array so the breakdown is VISIBLE in grading.
+- If the student answers only ONE correct part: award that part's share immediately, deduct only the missing/wrong parts' share, and set status = "partial".
+- NEVER award zero (0) for any answer containing any correct fragment! Zero is only for fully wrong, empty, or off-topic answers.
+- State in "feedback" and "steps" exactly which parts earned marks and which were deducted — never leave a deduction unexplained.`;
+
+    const markDivisionAr = `
+🔬 قاعدة الدقة العالية في قراءة وكتابة الرموز العلمية والرياضية والفيزيائية والكيميائية (إلزامية قصوى):
+- اقرأ واكتب الرموز العلمية بأعلى دقة ممكنة: صيغ ورموز العناصر الكيميائية وحالة الأحرف (Na, CO2, H2O, Fe3O4)، الشحنات الأيونية (Cu²⁺, SO4²⁻)، معاملات الموازنة مقابل الأرقام السفلية، الأسس والجذور والكسور (√, x², ½)، النهايات والتكاملات والدوال المثلثية، وحدات القياس الفيزيائية (m/s, N, J, mol, g)، والأسهم والرموز (→, Δ, ±, ≈).
+- ممنوع تشويه أو اختلاق رموز أو صيغ غير موجودة في إجابة الطالب؛ فسّر الكتابة الغامضة بحسن نية علمي قبل الحكم.
+
+📊 قاعدة توزيع درجة السؤال على أجزاء الإجابة (إلزامية قطعية):
+- قسّم درجة السؤال على أجزاء الإجابة المطلوبة في نموذج المعلم (خطوات، عناصر، فراغات، نواتج) واملأ مصفوفة "steps" بكل جزء ودرجته حتى يظهر التقسيم بوضوح في التصحيح.
+- إذا جاوب الطالب جزءاً صحيحاً واحداً فقط من الإجابة: يُمنح نصيبه من الدرجة فوراً، ويُخصم فقط نصيب الأجزاء الناقصة أو الخاطئة، وتكون status = "partial".
+- يُمنع منعاً باتاً إعطاء صفر (0) لأي إجابة تتضمن أي جزء أو فكرة صحيحة! الصفر فقط لإجابة خاطئة كلياً أو فارغة أو خارج الموضوع.
+- اذكر في "feedback" وفي "steps" بدقة أي أجزاء أخذ الطالب درجتها وأيها خُصم، ولا تترك أي خصم مبهماً.`;
+
     if (isEnglish) {
       return `You are an expert, fair, and pedagogically sound academic examiner. Grade the student's answer against the model answer with high precision, fairness, and deep understanding.
 ${proDirective}
+${symbolFidelityEn}
 Question: ${question || 'Question / Problem'}
 Total Points: ${qPoints}
 ${reqPoints ? `Required Points Count: ${reqPoints} distinct points (each point is worth ${(qPoints / reqPoints).toFixed(1)} marks).` : ''}
@@ -2765,6 +2788,7 @@ You MUST write the feedback and step descriptions in Arabic, BUT ALL scientific 
     if (isArabicGrammarOnly) {
       return `أنت مصحح ومعلم خبير وعادل ومتخصص في اللغة العربية والنحو والصرف. قم بتصحيح إجابة الطالب بمقارنتها بالإجابة النموذجية بأعلى درجات الدقة والأمانة التربوية واللغوية.
 ${proDirectiveAr}
+${markDivisionAr}
 السؤال: ${question || 'سؤال / مسألة'}
 الدرجة الكلية: ${qPoints}
 ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints} نقاط (درجة كل نقطة = ${(qPoints / reqPoints).toFixed(1)} درجات).` : ''}
@@ -2820,6 +2844,11 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
    - لا يُشترط نهائياً ولا يلزم إطلاقاً أن يعيد الطالب كتابة السؤال أو الجملة أو القطعة بالكامل!
    - إذا كتب الطالب الكلمات أو الإجابات المطلوبة فقط (مثل: "علم مؤنث" أو "اسم مجرور بالكسرة" أو "العلمية والتأنيث") دون إعادة كتابة نص السؤال، تُعتبر إجابته صحيحة وتامة 100% ويستحق الدرجة كاملة دون أي خصم نهائياً (score = ${qPoints} و status = "correct").
 
+قاعدة عدم التصفير للإجابة الجزئية وتوضيح التقسيم (إلزامية قصوى):
+- قسّم درجة السؤال (${qPoints}) على أجزاء الإجابة الصحيحة المطلوبة (عناصر/خطوات/فراغات/أفكار).
+- إذا أجاب الطالب على أي جزء من الإجابة الصحيحة — ولو جزءاً واحداً صغيراً — يُمنع منعاً باتاً منحه صفراً إجمالياً! امنحه نصيب الجزء الصحيح فقط واجعل status = "partial".
+- يجب أن يوضح التعليق ("feedback") والخطوات ("steps") هذا التقسيم للطالب صراحة: ما الأجزاء التي أُخذت درجتها، وما الأجزاء التي خُصمت ولماذا.
+
 أرجع فقط كائن JSON صالح:
 {
   "score": number,
@@ -2837,6 +2866,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
     if (isMathOrScience) {
       return `أنت مصحح ومعلم خبير وعادل وأمين متخصص في العلوم والرياضيات. قم بتصحيح إجابة الطالب بمقارنتها بالإجابة النموذجية بأعلى درجات الدقة والأمانة العلمية والتربوية.
 ${proDirectiveAr}
+${markDivisionAr}
 السؤال: ${question || 'سؤال / مسألة'}
 الدرجة الكلية: ${qPoints}
 ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints} نقاط (درجة كل نقطة = ${(qPoints / reqPoints).toFixed(1)} درجات).` : ''}
@@ -2909,6 +2939,12 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
    - لا يُشترط نهائياً ولا يلزم إطلاقاً أن يعيد الطالب كتابة السؤال أو العبارة أو المسألة بالكامل!
    - إذا كتب الطالب الكلمات أو الرموز المطلوبة فقط (مثل: "غاز الأكسجين" أو "O2" أو "أكسيد المغنسيوم / مسحوق أبيض" أو "3Fe + 2O2") دون إعادة كتابة نص السؤال، تُعتبر إجابته صحيحة وتامة 100% ويستحق الدرجة كاملة دون أي خصم نهائياً (score = ${qPoints} و status = "correct").
 
+قاعدة عدم التصفير للإجابة الجزئية وتوضيح التقسيم (إلزامية قصوى):
+- قسّم درجة السؤال (${qPoints}) على أجزاء الإجابة الصحيحة المطلوبة (فراغات/خطوات حل/عناصر/معادلات).
+- إذا أجاب الطالب على أي جزء من الإجابة الصحيحة — ولو جزءاً واحداً صغيراً — يُمنع منعاً باتاً منحه صفراً إجمالياً! امنحه نصيب الجزء الصحيح فقط واجعل status = "partial".
+- اقرأ رموز الطالب العلمية بأعلى دقة (صيغ كيميائية، وحدات فيزيائية، رموز رياضية، حروف يونانية) قبل الحكم على الإجابة.
+- يجب أن يوضح التعليق ("feedback") والخطوات ("steps") هذا التقسيم للطالب صراحة: ما الأجزاء التي أُخذت درجتها، وما الأجزاء التي خُصمت ولماذا.
+
 أرجع فقط كائن JSON:
 {
   "score": number,
@@ -2925,6 +2961,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
     // General Humanities / Social Studies / Religion / History / Geography / Philosophy / General Subjects
     return `أنت مصحح ومعلم خبير وعادل وأمين. قم بتصحيح إجابة الطالب بمقارنتها بالإجابة النموذجية بأعلى درجات الأمانة التربوية والعدالة.
 ${proDirectiveAr}
+${markDivisionAr}
 السؤال: ${question || 'سؤال مقالي'}
 الدرجة الكلية: ${qPoints}
 ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints} نقاط (درجة كل نقطة = ${(qPoints / reqPoints).toFixed(1)} درجات).` : ''}
@@ -2956,6 +2993,11 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
    - يُكتفى بالكلمات أو الألفاظ أو الفكرة المطلوبة للفراغ/الفراغات فقط.
    - لا يُشترط نهائياً ولا يلزم إطلاقاً أن يعيد الطالب كتابة السؤال أو الجملة أو الفقرة بالكامل!
    - إذا كتب الطالب الكلمات أو الإجابات المطلوبة فقط دون إعادة كتابة نص السؤال، تُعتبر إجابته صحيحة وتامة 100% ويستحق الدرجة كاملة دون أي خصم نهائياً (score = ${qPoints} و status = "correct").
+
+قاعدة عدم التصفير للإجابة الجزئية وتوضيح التقسيم (إلزامية قصوى):
+- قسّم درجة السؤال (${qPoints}) على أجزاء الإجابة الصحيحة المطلوبة (أفكار/عناصر/نقاط).
+- إذا أجاب الطالب على أي جزء من الإجابة الصحيحة — ولو جزءاً واحداً صغيراً — يُمنع منعاً باتاً منحه صفراً إجمالياً! امنحه نصيب الجزء الصحيح فقط واجعل status = "partial".
+- يجب أن يوضح التعليق ("feedback") والخطوات ("steps") هذا التقسيم للطالب صراحة: ما الأجزاء التي أُخذت درجتها، وما الأجزاء التي خُصمت ولماذا.
 
 أرجع فقط كائن JSON صالح:
 {

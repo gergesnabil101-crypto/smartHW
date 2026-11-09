@@ -222,9 +222,14 @@ export default function AdminUsersScreen() {
         </View>
         <View style={styles.headRow}>
           <Text style={typography.caption}>{filtered.length} مستخدم</Text>
-          <Pressable onPress={() => router.push('/admin/pricing')} style={styles.actionChip}>
-            <Text style={[styles.actionText, { color: colors.primary }]}>⚙️ إعدادات التسعير</Text>
-          </Pressable>
+          <View style={{ flexDirection: 'row-reverse', gap: 8 }}>
+            <Pressable onPress={() => router.push('/admin/requests')} style={styles.actionChip}>
+              <Text style={[styles.actionText, { color: colors.warning }]}>📋 طلبات الاشتراك</Text>
+            </Pressable>
+            <Pressable onPress={() => router.push('/admin/pricing')} style={styles.actionChip}>
+              <Text style={[styles.actionText, { color: colors.primary }]}>⚙️ إعدادات التسعير</Text>
+            </Pressable>
+          </View>
         </View>
       </View>
       {error ? <ErrorState message={error} onRetry={load} /> : null}

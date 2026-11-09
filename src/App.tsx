@@ -24,6 +24,7 @@ import { BatchSendModal } from './components/modals/BatchSendModal';
 import { MoveQuizModal, MoveQuestionModal } from './components/modals/MoveModals';
 import { DeleteQuizModal } from './components/modals/DeleteQuizModal';
 import { ProUpgradeModal } from './components/modals/ProUpgradeModal';
+import { AdminPricingModal } from './components/modals/AdminPricingModal';
 import { StudentPaperShareModal } from './components/modals/StudentPaperShareModal';
 import { PdfPageSelectionModal } from './components/modals/PdfPageSelectionModal';
 import { downloadStudentPaperImage, sendWhatsAppStudentPaper, formatWhatsAppPhone, buildParentResultOnlyWhatsAppMessage } from './utils/studentPaperExport';
@@ -3657,6 +3658,7 @@ export default function App() {
 
   const [adminRequests, setAdminRequests] = useState<any[]>([]);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [showPricingModal, setShowPricingModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileData, setProfileData] = useState({
     name: '',
@@ -7046,6 +7048,7 @@ ${totalAddedOrRepaired > 0
 6. الدقة العلمية واللغوية:
    - ممنوع تماماً ترجمة الأسئلة أو تغيير لغتها. حافظ حرفياً على لغة المستند الأصلية.
    - حافظ على المعادلات والرموز العلمية والصيغ الكيميائية والفيزيائية (مثل H₂O, Na⁺, α, β, Δ) واستخدم LaTeX أو صيغ واضحة.
+   - دقة قصوى في التمييز بين: معامل موازنة المعادلة والرقم السفلي للصيغة (2H₂O ≠ H₂O₂)، الشحنة الأيونية العلوية والأس الرياضي (SO₄²⁻ ≠ SO₄²)، وحالة أحرف رموز العناصر (Co الكوبالت ≠ CO أول أكسيد الكربون)، ووحدات القياس الفيزيائية (m/s, kg·m/s², mol/L). ممنوع تشويه أو اختلاق أي رمز غير موجود في المستند.
 
 7. صيغة الإخراج JSON فقط كقائمة من الكائنات:
 - 'text': نص السؤال الكامل بما في ذلك الرموز والمعادلات والأرقام العشرية ووسوم الكلمات التي تحتها خط <u>...</u>
@@ -7954,6 +7957,11 @@ ${totalAddedOrRepaired > 0
      * استخرج الأرقام العشرية كما وردت في الصورة بالضبط.
    - الدقة الرياضية الفائقة (Mathematical Fidelity):
      * حافظ على جميع الرموز الرياضية بدقة متناهية سواء باللغة العربية أو الإنجليزية (الأسس x²، الجذور √x، الكسور \\frac{a}{b}، الدوال المثلثية جا/جتا/ظا/sin/cos/tan، التكاملات \\int، النهايات \\lim، الزوايا ∠، الأشكال △، الرموز π، θ، α، β، Δ) باستخدام LaTeX القياسي أو الرموز الرياضية الواضحة.
+   - الدقة العلمية الفائقة في الكيمياء والفيزياء (Scientific Fidelity):
+     * ميّز بدقة قصوى بين معامل موازنة المعادلة والرقم السفلي للصيغة (2H₂O ≠ H₂O₂)، وبين الشحنة الأيونية العلوية والأس الرياضي (SO₄²⁻ ≠ SO₄²).
+     * حافظ على حالة أحرف رموز العناصر (Co كوبالت ≠ CO أول أكسيد الكربون، Na صوديوم ≠ na) والشحنات الأيونية (Cu²⁺, Fe³⁺, OH⁻, NO₃⁻).
+     * حافظ على وحدات القياس الفيزيائية كما وردت (m/s, kg·m/s², mol/L, N, J, W, Ω, °C) ومعادلات الفيزياء والرموز (→, ⇌, Δ, ±, ≈).
+     * ممنوع منعاً باتاً تشويه أو اختلاق أي صيغة أو رمز أو شحنة غير موجودة في الصورة.
    - استخرج نص كل سؤال كاملاً ومفهوماً في حقل 'text'.
 
 3. حل الأسئلة غير المجابة وتحديد الإجابات الصحيحة بدقة قطعية (إلزامي مطلق):
@@ -10244,10 +10252,21 @@ ${totalAddedOrRepaired > 0
             {showAdminPanel && (user?.role === 'admin' || user?.isAdmin || (user?.email && user.email.toLowerCase().trim() === 'gergesnabil101@gmail.com')) && (
               <div className="bg-amber-50 p-6 rounded-2xl border border-amber-100 animate-in fade-in slide-in-from-top-4 duration-300 space-y-8">
                 <div>
-                  <h3 className="text-xl font-bold text-amber-900 mb-4 flex items-center gap-2">
-                    <Users size={24} />
-                    طلبات الاشتراك المعلقة ({adminRequests.length})
-                  </h3>
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                    <h3 className="text-xl font-bold text-amber-900 flex items-center gap-2">
+                      <Users size={24} />
+                      طلبات الاشتراك المعلقة ({adminRequests.length})
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => setShowPricingModal(true)}
+                      className="inline-flex items-center gap-1.5 bg-slate-800 hover:bg-slate-900 text-amber-200 px-3.5 py-2 rounded-xl text-xs font-bold transition-colors shadow-xs cursor-pointer"
+                      title="التحكم في مضاعفات التوكنز وأسعار الباقات"
+                    >
+                      <Settings size={15} className="text-amber-300" />
+                      إعدادات التسعير والمضاعفات
+                    </button>
+                  </div>
                   {adminRequests.length === 0 ? (
                     <p className="text-amber-700 text-center py-8">لا توجد طلبات معلقة حالياً.</p>
                   ) : (
@@ -14996,6 +15015,12 @@ ${totalAddedOrRepaired > 0
           </>
         )}
       </main>
+
+      {/* Admin Pricing Settings Modal */}
+      <AdminPricingModal
+        isOpen={showPricingModal}
+        onClose={() => setShowPricingModal(false)}
+      />
 
       {/* Plans Selection Modal */}
             <TokenCalculatorModal

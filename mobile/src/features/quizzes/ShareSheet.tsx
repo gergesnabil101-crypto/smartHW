@@ -48,7 +48,7 @@ export function ShareSheet({ quizTitle, shareUrl }: Props) {
   return (
     <View style={styles.wrap}>
       <View style={styles.qrBox}>
-        <QRCode value={shareUrl} size={200} backgroundColor="#fff" getRef={qrRef} />
+        <QRCode value={shareUrl} size={200} backgroundColor="#fff" getRef={(c) => { qrRef.current = c; }} />
       </View>
       <Text style={[typography.caption, styles.url]} numberOfLines={1}>{shareUrl}</Text>
       <View style={styles.row}>

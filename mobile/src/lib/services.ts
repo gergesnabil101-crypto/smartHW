@@ -140,6 +140,16 @@ export const getPricing = () =>
   api.get<{ pricing: PricingConfig }>('/api/config/pricing').then((r) => r?.pricing || {});
 export const adminUpdatePricing = (data: PricingConfig) =>
   api.post<{ success: boolean; pricing: PricingConfig }>('/api/admin/pricing', data as Record<string, unknown>, { idempotent: true });
+export const adminApproveSubscription = (requestId: string) =>
+  api.post<{ success: boolean }>('/api/subscription-requests/approve', { requestId }, { idempotent: true });
+export const adminDeleteSubscriptionRequest = (requestId: string) =>
+  api.delete<{ success: boolean }>(`/api/subscription-requests/${encodeURIComponent(requestId)}`);
+
+// ---------- Subscription Requests (Admin) ----------
+export const approveSubscriptionRequest = (requestId: string) =>
+  api.post<{ success: boolean }>('/api/subscription-requests/approve', { requestId });
+export const deleteSubscriptionRequest = (requestId: string) =>
+  api.delete<{ success: boolean }>(`/api/subscription-requests/${encodeURIComponent(requestId)}`);
 
 // ---------- Misc ----------
 export const healthCheck = () => api.get<{ ok: boolean }>('/api/health', { auth: false });

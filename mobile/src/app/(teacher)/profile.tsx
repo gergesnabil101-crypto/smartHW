@@ -114,7 +114,10 @@ export default function ProfileScreen() {
       </Card>
 
       {(profile?.isAdmin === true || profile?.role === 'admin') ? (
-        <Button title="👑 إدارة المستخدمين" variant="secondary" onPress={() => router.push('/admin/users')} style={{ marginTop: 8 }} />
+        <>
+          <Button title="👑 إدارة المستخدمين" variant="secondary" onPress={() => router.push('/admin/users')} style={{ marginTop: 8 }} />
+          <Button title="🧾 طلبات الاشتراك المعلقة" variant="secondary" onPress={() => router.push('/admin/requests')} style={{ marginTop: 8 }} />
+        </>
       ) : null}
 
       <Button title="تسجيل الخروج" variant="danger" onPress={confirmLogout} style={{ marginTop: 8 }} />
