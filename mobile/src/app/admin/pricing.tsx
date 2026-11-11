@@ -8,12 +8,13 @@ import { Button } from '../../components/Button';
 import { Loading, ErrorState } from '../../components/Feedback';
 import { getPricing, adminUpdatePricing, PricingConfig } from '../../lib/services';
 import { PLANS } from '../../lib/plans';
-import { useAuth } from '../../store/AuthContext';
+import { useAuth, isAdminUser } from '../../store/AuthContext';
 import { colors, typography } from '../../theme';
 
 /** Admin pricing panel: token profit margin (billing multipliers) + per-plan prices. */
 export default function AdminPricingScreen() {
-  const { user, initialized } = useAuth();
+  const { user, profile, initialized } = useAuth();
+  const isAdmin = isAdminUser(profile as any, user?.email);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -80,7 +81,7 @@ export default function AdminPricingScreen() {
   };
 
   if (initialized && !user) return <Redirect href="/(auth)/login" />;
-  if (!(user as any)?.isAdmin) {
+  if (initialized && user && !isAdmin) {
     return <Screen><ErrorState message="غير مصرح — هذه الصفحة متاحة لمديري المنصة فقط." /></Screen>;
   }
 

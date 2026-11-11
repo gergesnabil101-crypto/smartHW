@@ -9,7 +9,7 @@ import { Loading, EmptyState, ErrorState } from '../../components/Feedback';
 import { adminApproveSubscription, adminDeleteSubscriptionRequest } from '../../lib/services';
 import { db } from '../../lib/firebase';
 import { PLANS } from '../../lib/plans';
-import { useAuth } from '../../store/AuthContext';
+import { useAuth, isAdminUser } from '../../store/AuthContext';
 import { colors, radius, typography } from '../../theme';
 
 interface SubRequest {
@@ -43,7 +43,8 @@ function planLabel(req: SubRequest): string {
 }
 
 export default function AdminRequestsScreen() {
-  const { initialized, user } = useAuth();
+  const { initialized, user, profile } = useAuth();
+  const isAdmin = isAdminUser(profile as any, user?.email);
   const [requests, setRequests] = useState<SubRequest[] | null>(null);
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -106,8 +107,8 @@ export default function AdminRequestsScreen() {
   };
 
   if (initialized && !user) return <Redirect href="/(auth)/login" />;
-  if (!(user as any)?.isAdmin) {
-    return <Screen><ErrorState title="غير مصرح" message="هذه الصفحة متاحة لمديري المنصة فقط." /></Screen>;
+  if (initialized && user && !isAdmin) {
+    return <Screen><ErrorState message="غير مصرح — هذه الصفحة متاحة لمديري المنصة فقط." /></Screen>;
   }
   if (requests === null && !error) {
     return <Screen><Loading text="جاري تحميل الطلبات..." /></Screen>;
