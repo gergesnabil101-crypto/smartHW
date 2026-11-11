@@ -107,11 +107,13 @@ export default function AdminRequestsScreen() {
   };
 
   if (initialized && !user) return <Redirect href="/(auth)/login" />;
-  if (initialized && user && !isAdmin) {
-    return <Screen><ErrorState message="غير مصرح — هذه الصفحة متاحة لمديري المنصة فقط." /></Screen>;
-  }
   if (requests === null && !error) {
     return <Screen><Loading text="جاري تحميل الطلبات..." /></Screen>;
+  }
+  // Gate AFTER data resolves — profile may still be loading on cold start.
+  // Non-admins also fail the Firestore rules query, so they land on the error state anyway.
+  if (initialized && user && !isAdmin && requests !== null && !error) {
+    return <Screen><ErrorState message="غير مصرح — هذه الصفحة متاحة لمديري المنصة فقط." /></Screen>;
   }
 
   return (

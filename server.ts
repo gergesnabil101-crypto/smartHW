@@ -4347,6 +4347,29 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
       const createdAt = parseSafeDateServer(u.created_at || u.createdAt, now);
       u.created_at = createdAt.toISOString();
 
+      // Normalize: the daily token counter resets per calendar day even for
+      // users who made no AI calls today (stale counter must display as 0).
+      if (u.last_token_reset_date !== todayStr) u.tokens_used_today = 0;
+
+      // Normalize: a subscription period must never exceed its billing cycle
+      // length — repairs end dates inflated by the old renewal-stacking bug.
+      const uIsAdmin = u.role === 'admin' || u.admin === true || uEmail === 'gergesnabil101@gmail.com';
+      if (uIsAdmin) { u.role = 'admin'; u.admin = true; }
+      if (!uIsAdmin && u.subscription_end_date) {
+        const end = new Date(u.subscription_end_date).getTime();
+        const cycleDays = u.billing_cycle === 'yearly' ? 365
+          : (u.subscription_status === 'trial' || u.subscription_status === 'pending_approval' ? 5 : 30);
+        const maxEnd = now.getTime() + cycleDays * 24 * 60 * 60 * 1000;
+        if (end > maxEnd) {
+          const clamped = new Date(maxEnd).toISOString();
+          u.subscription_end_date = clamped;
+          const docId = u.id || u.uid;
+          if (docId) {
+            adminDb.collection('users').doc(docId).set({ subscription_end_date: clamped }, { merge: true }).catch(() => {});
+          }
+        }
+      }
+
       deduplicatedUsers.push(u);
     });
 

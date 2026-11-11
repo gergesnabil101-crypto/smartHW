@@ -81,7 +81,8 @@ export default function AdminPricingScreen() {
   };
 
   if (initialized && !user) return <Redirect href="/(auth)/login" />;
-  if (initialized && user && !isAdmin) {
+  // Gate AFTER the pricing fetch resolves — profile may still be loading on cold start.
+  if (initialized && user && !isAdmin && !loading) {
     return <Screen><ErrorState message="غير مصرح — هذه الصفحة متاحة لمديري المنصة فقط." /></Screen>;
   }
 

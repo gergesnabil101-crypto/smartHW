@@ -245,7 +245,7 @@ export default function AdminUsersScreen() {
           const suspended = !!item.is_suspended;
           const expired = isExpired(item);
           const days = daysLeft(item);
-          const isAdminUser = item.admin === true || item.role === 'admin';
+          const isAdminUser = item.admin === true || item.role === 'admin' || (item.email || '').toLowerCase().trim() === 'gergesnabil101@gmail.com';
           const uid = item.uid || item.id;
           const busy = busyId === uid;
           return (
@@ -275,7 +275,7 @@ export default function AdminUsersScreen() {
                   ) : null}
                 </View>
                 <View style={[styles.badge, suspended || expired ? styles.badgeSuspended : status === 'active' || isAdminUser ? styles.badgeActive : styles.badgeTrial]}>
-                  <Text style={styles.badgeText}>{suspended ? 'موقوف' : expired ? 'منتهي' : (STATUS_LABEL[status] || status)}</Text>
+                  <Text style={styles.badgeText}>{suspended ? 'موقوف' : isAdminUser ? 'مدير' : expired ? 'منتهي' : (STATUS_LABEL[status] || status)}</Text>
                 </View>
               </View>
               {!isAdminUser ? (

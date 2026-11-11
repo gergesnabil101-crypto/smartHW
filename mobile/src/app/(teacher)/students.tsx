@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, FlatList, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { collection, deleteDoc, doc, getDocs, query, setDoc, where } from 'firebase/firestore';
 import { useAuth } from '../../store/AuthContext';
 import { db } from '../../lib/firebase';
@@ -34,6 +34,8 @@ export default function StudentsScreen() {
   const [students, setStudents] = useState<StudentRow[] | null>(null);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [centerFilter, setCenterFilter] = useState('all');
+  const [centerPickerOpen, setCenterPickerOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -96,12 +98,26 @@ export default function StudentsScreen() {
 
   useEffect(() => { load(); }, [load]);
 
+  const uniqueCenters = useMemo(() => {
+    const set = new Set<string>();
+    (students || []).forEach((s) => {
+      const name = String(s.center_name || '').trim();
+      if (name) set.add(name);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'));
+  }, [students]);
+
   const filtered = useMemo(() => {
+    let list = students || [];
+    if (centerFilter !== 'all') {
+      list = centerFilter === '__none__'
+        ? list.filter((s) => !String(s.center_name || '').trim())
+        : list.filter((s) => String(s.center_name || '').trim() === centerFilter);
+    }
     const q = search.trim().toLowerCase();
-    const list = students || [];
     if (!q) return list;
     return list.filter((s) => `${s.name} ${s.phone} ${s.center_name ?? ''}`.toLowerCase().includes(q));
-  }, [students, search]);
+  }, [students, search, centerFilter]);
 
   const createCode = async (s: StudentRow) => {
     if (!user?.uid) return;
@@ -199,6 +215,38 @@ export default function StudentsScreen() {
     <Screen scroll={false}>
       <View style={styles.searchWrap}>
         <Input placeholder="ابحث باسم الطالب أو الهاتف أو السنتر/المجموعة..." value={search} onChangeText={setSearch} />
+        <Pressable style={styles.selectBox} onPress={() => setCenterPickerOpen(true)}>
+          <Text style={styles.selectLabel}>السنتر / المجموعة:</Text>
+          <Text style={styles.selectValue} numberOfLines={1}>
+            {centerFilter === 'all' ? 'الكل' : centerFilter === '__none__' ? 'بدون سنتر' : centerFilter}
+          </Text>
+          <Text style={styles.selectArrow}>▾</Text>
+        </Pressable>
+        <Modal visible={centerPickerOpen} transparent animationType="fade" onRequestClose={() => setCenterPickerOpen(false)}>
+          <Pressable style={styles.modalBackdrop} onPress={() => setCenterPickerOpen(false)}>
+            <View style={styles.modalCard}>
+              <Text style={styles.modalTitle}>اختر السنتر / المجموعة</Text>
+              <FlatList
+                data={['all', ...uniqueCenters, '__none__']}
+                keyExtractor={(c) => c}
+                style={{ maxHeight: 340 }}
+                renderItem={({ item }) => {
+                  const label = item === 'all' ? 'الكل' : item === '__none__' ? 'بدون سنتر' : item;
+                  const active = centerFilter === item;
+                  return (
+                    <Pressable
+                      style={[styles.optionRow, active && styles.optionRowActive]}
+                      onPress={() => { setCenterFilter(item); setCenterPickerOpen(false); }}
+                    >
+                      <Text style={[styles.optionText, active && styles.optionTextActive]}>{label}</Text>
+                      {active ? <Text style={styles.optionCheck}>✓</Text> : null}
+                    </Pressable>
+                  );
+                }}
+              />
+            </View>
+          </Pressable>
+        </Modal>
         <Text style={[typography.caption, { textAlign: 'right', marginTop: 6 }]}>
           {filtered.length} طالب — الكود ثابت ويُستخدم في كل اختباراتك المحمية بكود
         </Text>
@@ -265,4 +313,20 @@ const styles = StyleSheet.create({
   actionsRow: { flexDirection: 'row-reverse', gap: 8, marginTop: 8 },
   actionChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border },
   actionChipText: { fontSize: 12, fontWeight: '700' },
+  selectBox: {
+    flexDirection: 'row-reverse', alignItems: 'center', gap: 6, marginBottom: 4,
+    borderWidth: 1, borderColor: colors.border, borderRadius: radius.md,
+    backgroundColor: colors.surface, paddingHorizontal: 12, paddingVertical: 10,
+  },
+  selectLabel: { fontSize: 13, fontWeight: '700', color: colors.textMuted },
+  selectValue: { flex: 1, fontSize: 14, fontWeight: '600', color: colors.text, textAlign: 'right' },
+  selectArrow: { fontSize: 14, color: colors.textMuted },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 24 },
+  modalCard: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: 16, maxHeight: '80%' },
+  modalTitle: { fontSize: 16, fontWeight: '800', color: colors.text, textAlign: 'right', marginBottom: 10 },
+  optionRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 10, borderRadius: radius.sm },
+  optionRowActive: { backgroundColor: colors.primarySoft },
+  optionText: { fontSize: 14, fontWeight: '600', color: colors.text, textAlign: 'right', flex: 1 },
+  optionTextActive: { color: colors.primary },
+  optionCheck: { fontSize: 15, fontWeight: '800', color: colors.primary },
 });
