@@ -69,7 +69,7 @@ export default function AdminUsageScreen() {
       snap.forEach((d) => {
         const l = d.data() as any;
         const key = String(l.user_id || l.user_email || 'unknown');
-        const row = agg.get(key) || {
+        const row: UsageRow = agg.get(key) || {
           user_id: key, user_name: l.user_name || '', user_email: l.user_email || '',
           plan: planById[key] || planById[l.user_email] || '—',
           prompt_tokens: 0, candidates_tokens: 0, total_tokens: 0, ops: {},
@@ -174,5 +174,5 @@ const styles = StyleSheet.create({
   smallNum: { fontSize: 15, fontWeight: '800', color: colors.text },
   totalLabel: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
   headRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  planBadge: { fontSize: 12, fontWeight: '800', color: colors.text, backgroundColor: colors.surfaceAlt, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4, overflow: 'hidden' },
+  planBadge: { fontSize: 12, fontWeight: '800', color: colors.text, backgroundColor: colors.primarySoft, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4, overflow: 'hidden' },
 });
