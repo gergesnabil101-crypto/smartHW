@@ -33,6 +33,10 @@ export default function RootLayout() {
           <Stack.Screen name="admin/users" options={{ title: 'إدارة المستخدمين' }} />
           <Stack.Screen name="admin/pricing" options={{ title: 'إعدادات التسعير' }} />
           <Stack.Screen name="admin/requests" options={{ title: 'طلبات الاشتراك' }} />
+          <Stack.Screen name="admin/notifications" options={{ title: 'مركز الإشعارات' }} />
+          <Stack.Screen name="admin/students" options={{ title: 'سجلات طلاب المنصة' }} />
+          <Stack.Screen name="admin/usage" options={{ title: 'استهلاك اليوم' }} />
+          <Stack.Screen name="instructions" options={{ title: 'تعليمات الاستخدام' }} />
           <Stack.Screen name="take/[id]" options={{ title: 'الاختبار', headerShown: false }} />
         </Stack>
       </AuthProvider>

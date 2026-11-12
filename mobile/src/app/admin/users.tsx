@@ -61,6 +61,10 @@ export default function AdminUsersScreen() {
   const [tab, setTab] = useState<'trial' | 'active' | 'closed'>('active');
   const [tokenTarget, setTokenTarget] = useState<AdminUser | null>(null);
   const [tokenAmount, setTokenAmount] = useState('');
+  const [actTarget, setActTarget] = useState<AdminUser | null>(null);
+  const [actModel, setActModel] = useState<'flash' | 'pro'>('flash');
+  const [actDays, setActDays] = useState(30);
+  const [actMillions, setActMillions] = useState(1);
 
   const isAdmin = profile?.isAdmin === true || profile?.role === 'admin';
 
@@ -130,6 +134,34 @@ export default function AdminUsersScreen() {
         },
       },
     ]);
+  };
+
+  const activateAccount = async () => {
+    const u = actTarget;
+    const uid = u?.uid || u?.id;
+    if (!u || !uid) return;
+    setBusyId(uid);
+    try {
+      const planId = `${actModel === 'pro' ? 'pro_' : ''}token_${actMillions}M`;
+      await adminUpdateUser(uid, u.email, {
+        subscription_status: 'active',
+        subscription_type: planId,
+        billing_cycle: actDays >= 365 ? 'yearly' : 'monthly',
+        subscription_end_date: new Date(Date.now() + actDays * 86400000).toISOString(),
+        custom_tokens_millions: actMillions,
+        preferred_ai_model: actModel === 'pro' ? 'gemini_pro' : 'gemini_flash',
+        hasAccess: true,
+        is_suspended: false,
+        hasPendingSubscription: false,
+      });
+      setActTarget(null);
+      await load();
+      Alert.alert('تم التفعيل ✅', `${u.name || u.email}: نظام ${actModel === 'pro' ? 'برو 👑' : 'فلاش ⚡'} — ${actMillions} مليون توكن لمدة ${actDays} يوم`);
+    } catch (e: any) {
+      Alert.alert('فشل التفعيل', e?.message || 'حاول مرة أخرى.');
+    } finally {
+      setBusyId(null);
+    }
   };
 
   const addExtraTokens = async () => {
@@ -222,12 +254,21 @@ export default function AdminUsersScreen() {
         </View>
         <View style={styles.headRow}>
           <Text style={typography.caption}>{filtered.length} مستخدم</Text>
-          <View style={{ flexDirection: 'row-reverse', gap: 8 }}>
+          <View style={{ flexDirection: 'row-reverse', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end', flexShrink: 1, maxWidth: '78%' }}>
             <Pressable onPress={() => router.push('/admin/requests')} style={styles.actionChip}>
-              <Text style={[styles.actionText, { color: colors.warning }]}>📋 طلبات الاشتراك</Text>
+              <Text style={[styles.actionText, { color: colors.warning }]}>📋 طلبات</Text>
+            </Pressable>
+            <Pressable onPress={() => router.push('/admin/notifications')} style={styles.actionChip}>
+              <Text style={[styles.actionText, { color: colors.warning }]}>🔔 إشعارات</Text>
+            </Pressable>
+            <Pressable onPress={() => router.push('/admin/students')} style={styles.actionChip}>
+              <Text style={[styles.actionText, { color: colors.primary }]}>👥 سجلات</Text>
+            </Pressable>
+            <Pressable onPress={() => router.push('/admin/usage')} style={styles.actionChip}>
+              <Text style={[styles.actionText, { color: colors.primary }]}>📊 استهلاك</Text>
             </Pressable>
             <Pressable onPress={() => router.push('/admin/pricing')} style={styles.actionChip}>
-              <Text style={[styles.actionText, { color: colors.primary }]}>⚙️ إعدادات التسعير</Text>
+              <Text style={[styles.actionText, { color: colors.primary }]}>⚙️ تسعير</Text>
             </Pressable>
           </View>
         </View>
@@ -288,6 +329,9 @@ export default function AdminUsersScreen() {
                   <Pressable onPress={() => resetAccount(item)} disabled={busy} style={styles.actionChip}>
                     <Text style={[styles.actionText, { color: colors.primary }]}>🔄 تصفير</Text>
                   </Pressable>
+                  <Pressable onPress={() => { setActTarget(item); setActModel('flash'); setActDays(30); setActMillions(1); }} disabled={busy} style={styles.actionChip}>
+                    <Text style={[styles.actionText, { color: colors.primary }]}>⚡ تفعيل/تجديد</Text>
+                  </Pressable>
                   <Pressable onPress={() => { setTokenTarget(item); setTokenAmount(''); }} disabled={busy} style={styles.actionChip}>
                     <Text style={[styles.actionText, { color: colors.primary }]}>➕ توكنز</Text>
                   </Pressable>
@@ -321,6 +365,44 @@ export default function AdminUsersScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Manual activation modal — نظام + مدة + ملايين */}
+      <Modal visible={!!actTarget} transparent animationType="fade" onRequestClose={() => setActTarget(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={typography.h3}>⚡ تفعيل اشتراك يدوي</Text>
+            <Text style={typography.caption}>{actTarget?.name || actTarget?.email}</Text>
+            <Text style={typography.label}>النظام:</Text>
+            <View style={styles.pickRow}>
+              {([{ k: 'flash' as const, t: '⚡ فلاش' }, { k: 'pro' as const, t: '👑 برو' }]).map((m) => (
+                <Pressable key={m.k} onPress={() => setActModel(m.k)} style={[styles.pickChip, actModel === m.k && styles.pickChipOn]}>
+                  <Text style={[styles.pickText, actModel === m.k && styles.pickTextOn]}>{m.t}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text style={typography.label}>مدة الاشتراك:</Text>
+            <View style={styles.pickRow}>
+              {[30, 90, 180, 365].map((d) => (
+                <Pressable key={d} onPress={() => setActDays(d)} style={[styles.pickChip, actDays === d && styles.pickChipOn]}>
+                  <Text style={[styles.pickText, actDays === d && styles.pickTextOn]}>{d} يوم</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text style={typography.label}>ملايين التوكنز:</Text>
+            <View style={styles.pickRow}>
+              {[1, 2, 3, 5, 10].map((m) => (
+                <Pressable key={m} onPress={() => setActMillions(m)} style={[styles.pickChip, actMillions === m && styles.pickChipOn]}>
+                  <Text style={[styles.pickText, actMillions === m && styles.pickTextOn]}>{m}M</Text>
+                </Pressable>
+              ))}
+            </View>
+            <View style={{ flexDirection: 'row-reverse', gap: 8, marginTop: 4 }}>
+              <Button title="تفعيل الآن" onPress={activateAccount} loading={busyId === (actTarget?.uid || actTarget?.id)} />
+              <Button title="إلغاء" variant="secondary" onPress={() => setActTarget(null)} />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </Screen>
   );
 }
@@ -345,4 +427,9 @@ const styles = StyleSheet.create({
   actionText: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 },
   modalCard: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: 20, gap: 12 },
+  pickRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 },
+  pickChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  pickChipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  pickText: { fontSize: 13, fontWeight: '700', color: colors.textSecondary },
+  pickTextOn: { color: '#fff' },
 });

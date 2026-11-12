@@ -5,7 +5,7 @@ import { Screen } from '../../components/Screen';
 import { Card } from '../../components/Card';
 import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
-import { useAuth } from '../../store/AuthContext';
+import { useAuth, isAdminUser } from '../../store/AuthContext';
 import { updateProfile } from '../../lib/services';
 import { GRADE_LEVELS } from '../../constants';
 import { colors, radius, typography } from '../../theme';
@@ -80,6 +80,9 @@ export default function ProfileScreen() {
         <Pressable onPress={() => router.push('/subscription')} style={styles.renewBtn}>
           <Text style={styles.renewText}>💳 الباقات والاشتراك — فعّل أو جدد اشتراكك</Text>
         </Pressable>
+        <Pressable onPress={() => router.push('/instructions')} style={styles.renewBtn}>
+          <Text style={styles.renewText}>📖 تعليمات الاستخدام — فلاش vs برو وقواعد الرصيد</Text>
+        </Pressable>
       </Card>
 
       <Card>
@@ -113,7 +116,7 @@ export default function ProfileScreen() {
         <Button title="حفظ التعديلات" onPress={save} loading={saving} />
       </Card>
 
-      {(profile?.isAdmin === true || profile?.role === 'admin') ? (
+      {isAdminUser(profile as any, user?.email) ? (
         <>
           <Button title="👑 إدارة المستخدمين" variant="secondary" onPress={() => router.push('/admin/users')} style={{ marginTop: 8 }} />
           <Button title="🧾 طلبات الاشتراك المعلقة" variant="secondary" onPress={() => router.push('/admin/requests')} style={{ marginTop: 8 }} />
