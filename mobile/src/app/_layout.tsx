@@ -20,6 +20,8 @@ export default function RootLayout() {
             headerStyle: { backgroundColor: colors.surface },
             headerTintColor: colors.text,
             headerTitleAlign: 'center',
+            headerTitleStyle: { fontWeight: '800', fontSize: 17 },
+            headerShadowVisible: false,
             contentStyle: { backgroundColor: colors.bg },
           }}
         >

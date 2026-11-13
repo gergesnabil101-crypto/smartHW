@@ -25,10 +25,10 @@ export function Card({ children, style, onPress }: Props) {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
-    borderRadius: radius.lg,
+    borderRadius: radius.xl,
     borderWidth: 1,
-    borderColor: colors.border,
-    padding: 14,
+    borderColor: colors.borderSoft,
+    padding: 16,
     marginBottom: 12,
     ...shadows.card,
   },

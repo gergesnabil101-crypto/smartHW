@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Link, useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Screen } from '../../components/Screen';
 import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
+import { Card } from '../../components/Card';
 import { useAuth } from '../../store/AuthContext';
-import { colors, typography } from '../../theme';
+import { colors, radius, shadows, typography } from '../../theme';
 
 function friendlyAuthError(code?: string): string {
   switch (code) {
@@ -61,39 +63,44 @@ export default function LoginScreen() {
   return (
     <Screen>
       <View style={styles.header}>
+        <LinearGradient colors={[colors.primary, colors.primaryDark]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.logoBadge}>
+          <Text style={styles.logoEmoji}>📝</Text>
+        </LinearGradient>
         <Text style={typography.h1}>مصحح الواجبات الذكي</Text>
-        <Text style={typography.bodySecondary}>سجل الدخول لمتابعة اختباراتك ونتائج طلابك</Text>
+        <Text style={[typography.bodySecondary, { textAlign: 'center' }]}>سجل الدخول لمتابعة اختباراتك ونتائج طلابك</Text>
       </View>
 
-      <Input
-        label="البريد الإلكتروني"
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        autoCapitalize="none"
-        autoComplete="email"
-        placeholder="teacher@example.com"
-      />
-      <Input
-        label="كلمة المرور"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        autoComplete="password"
-        placeholder="••••••••"
-      />
+      <Card>
+        <Input
+          label="البريد الإلكتروني"
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoComplete="email"
+          placeholder="teacher@example.com"
+        />
+        <Input
+          label="كلمة المرور"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+          autoComplete="password"
+          placeholder="••••••••"
+        />
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      <Button title="تسجيل الدخول" onPress={submit} loading={loading} />
+        <Button title="تسجيل الدخول" onPress={submit} loading={loading} />
+      </Card>
 
       <View style={styles.links}>
         <Link href="/(auth)/forgot-password" style={styles.link}>نسيت كلمة المرور؟</Link>
         <Link href="/(auth)/register" style={styles.link}>إنشاء حساب معلم جديد</Link>
       </View>
 
-      <View style={styles.studentBox}>
-        <Text style={typography.label}>طالب؟ الصق رابط أو كود الاختبار</Text>
+      <Card style={{ marginTop: 24 }}>
+        <Text style={typography.label}>🎓 طالب؟ الصق رابط أو كود الاختبار</Text>
         <Input
           value={joinCode}
           onChangeText={setJoinCode}
@@ -101,15 +108,16 @@ export default function LoginScreen() {
           autoCapitalize="none"
         />
         <Button title="دخول الاختبار" variant="secondary" onPress={joinQuiz} />
-      </View>
+      </Card>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { alignItems: 'center', gap: 8, marginVertical: 40 },
+  header: { alignItems: 'center', gap: 10, marginVertical: 32 },
+  logoBadge: { width: 84, height: 84, borderRadius: 26, alignItems: 'center', justifyContent: 'center', marginBottom: 6, ...shadows.elev },
+  logoEmoji: { fontSize: 40 },
   error: { color: colors.danger, textAlign: 'right', writingDirection: 'rtl', marginBottom: 10 },
-  links: { alignItems: 'center', gap: 14, marginTop: 24 },
-  link: { color: colors.primary, fontSize: 15, fontWeight: '600' },
-  studentBox: { marginTop: 40, paddingTop: 20, borderTopWidth: 1, borderTopColor: colors.border },
+  links: { alignItems: 'center', gap: 14, marginTop: 20 },
+  link: { color: colors.primary, fontSize: 15, fontWeight: '700' },
 });

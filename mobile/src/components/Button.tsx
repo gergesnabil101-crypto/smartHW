@@ -1,6 +1,7 @@
 import React from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, ViewStyle } from 'react-native';
-import { colors, radius } from '../theme';
+import { LinearGradient } from 'expo-linear-gradient';
+import { colors, radius, shadows } from '../theme';
 
 type Variant = 'primary' | 'secondary' | 'danger' | 'ghost';
 
@@ -13,21 +14,36 @@ interface Props {
   style?: ViewStyle;
 }
 
+const GRADIENTS: Record<string, readonly [string, string]> = {
+  primary: [colors.primary, colors.primaryDark],
+  danger: ['#ef4444', colors.dangerDark],
+};
+
 export function Button({ title, onPress, variant = 'primary', disabled, loading, style }: Props) {
   const isDisabled = disabled || loading;
+  const gradient = GRADIENTS[variant];
   return (
     <Pressable
       onPress={onPress}
       disabled={isDisabled}
       style={({ pressed }) => [
         styles.base,
-        styles[variant],
+        variant === 'secondary' && styles.secondary,
+        variant === 'ghost' && styles.ghost,
         isDisabled && styles.disabled,
         pressed && !isDisabled && styles.pressed,
         style,
       ]}
       accessibilityRole="button"
     >
+      {gradient ? (
+        <LinearGradient
+          colors={gradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[StyleSheet.absoluteFill, styles.gradient, variant === 'primary' && shadows.elev, variant === 'danger' && shadows.elevDanger]}
+        />
+      ) : null}
       {loading ? (
         <ActivityIndicator color={variant === 'ghost' || variant === 'secondary' ? colors.primary : '#fff'} />
       ) : (
@@ -41,20 +57,20 @@ export function Button({ title, onPress, variant = 'primary', disabled, loading,
 
 const styles = StyleSheet.create({
   base: {
-    borderRadius: radius.md,
-    paddingVertical: 13,
+    borderRadius: radius.lg,
+    paddingVertical: 14,
     paddingHorizontal: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 48,
+    minHeight: 50,
+    overflow: 'hidden',
   },
-  primary: { backgroundColor: colors.primary },
-  secondary: { backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.primary },
-  danger: { backgroundColor: colors.danger },
+  gradient: { borderRadius: radius.lg },
+  secondary: { backgroundColor: colors.primarySoft, borderWidth: 1.5, borderColor: '#c7d2fe' },
   ghost: { backgroundColor: 'transparent' },
   disabled: { opacity: 0.5 },
-  pressed: { opacity: 0.85 },
-  text: { color: '#fff', fontSize: 16, fontWeight: '700', writingDirection: 'rtl' },
+  pressed: { opacity: 0.9, transform: [{ scale: 0.98 }] },
+  text: { color: '#fff', fontSize: 16, fontWeight: '800', writingDirection: 'rtl', zIndex: 1 },
   secondaryText: { color: colors.primary },
   ghostText: { color: colors.primary },
 });

@@ -15,7 +15,7 @@ export function Loading({ text = 'جاري التحميل...' }: { text?: string
 export function EmptyState({ title, hint }: { title: string; hint?: string }) {
   return (
     <View style={styles.center}>
-      <Text style={styles.emoji}>📭</Text>
+      <View style={styles.emojiWrap}><Text style={styles.emoji}>📭</Text></View>
       <Text style={[typography.h3, styles.mt]}>{title}</Text>
       {hint ? <Text style={[typography.bodySecondary, styles.mtSm]}>{hint}</Text> : null}
     </View>
@@ -25,7 +25,7 @@ export function EmptyState({ title, hint }: { title: string; hint?: string }) {
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
     <View style={styles.center}>
-      <Text style={styles.emoji}>⚠️</Text>
+      <View style={[styles.emojiWrap, { backgroundColor: colors.dangerSoft }]}><Text style={styles.emoji}>⚠️</Text></View>
       <Text style={[typography.h3, styles.mt]}>حدث خطأ</Text>
       <Text style={[typography.bodySecondary, styles.mtSm]}>{message}</Text>
       {onRetry ? <Button title="إعادة المحاولة" onPress={onRetry} style={styles.retry} /> : null}
@@ -34,8 +34,9 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
 }
 
 const styles = StyleSheet.create({
-  center: { alignItems: 'center', justifyContent: 'center', padding: 32 },
-  emoji: { fontSize: 40 },
+  center: { alignItems: 'center', justifyContent: 'center', padding: 40 },
+  emojiWrap: { width: 72, height: 72, borderRadius: 36, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  emoji: { fontSize: 34 },
   mt: { marginTop: 12 },
   mtSm: { marginTop: 6 },
   retry: { marginTop: 16, alignSelf: 'stretch' },
