@@ -1,7 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, AppState, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { collection, getDocs } from 'firebase/firestore';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
+import * as ScreenCapture from 'expo-screen-capture';
 import { Screen } from '../../components/Screen';
 import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
@@ -40,6 +43,12 @@ export default function TakeQuizScreen() {
   const startTimeRef = useRef<number>(0);
   const [result, setResult] = useState<{ score?: number; total?: number; feedback?: Record<string, any> } | null>(null);
   const [notifs, setNotifs] = useState<Notif[]>([]);
+  const [exporting, setExporting] = useState(false);
+
+  // Anti-cheat counters (refs so auto-submit always reads the latest values)
+  const leftAppRef = useRef(0);
+  const shotsRef = useRef(0);
+  const [leftAppCount, setLeftAppCount] = useState(0);
 
   useEffect(() => {
     if (!id) return;
@@ -96,10 +105,41 @@ export default function TakeQuizScreen() {
   useEffect(() => {
     if (secondsLeft === 0 && !submittedRef.current) {
       submittedRef.current = true;
-      submit();
+      submit(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [secondsLeft]);
+
+  // Anti-cheat: block screenshots and count app-background exits during the quiz
+  useEffect(() => {
+    if (phase !== 'quiz') return;
+    ScreenCapture.preventScreenCaptureAsync('quiz').catch(() => {});
+    const shotSub = ScreenCapture.addScreenshotListener(() => {
+      shotsRef.current += 1;
+      Alert.alert('محاولة لقطة شاشة ⚠️', 'أخذ لقطات شاشة أثناء الاختبار مسجّل وسيظهر للمعلم.');
+    });
+    const appSub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') return;
+      leftAppRef.current += 1;
+      setLeftAppCount(leftAppRef.current);
+      if (leftAppRef.current >= 3 && !submittedRef.current) {
+        submittedRef.current = true;
+        Alert.alert('تم تسليم الاختبار تلقائياً', 'تجاوزت حد الخروج من التطبيق أثناء الاختبار.');
+        submit(true);
+      } else {
+        Alert.alert(
+          'تحذير من الغش ⚠️',
+          `خروجك من التطبيق أثناء الاختبار مسجّل وسيظهر للمعلم (${leftAppRef.current}/3).\nعند الخروج الثالث سيتم تسليم الاختبار تلقائياً.`
+        );
+      }
+    });
+    return () => {
+      shotSub?.remove();
+      appSub?.remove();
+      ScreenCapture.allowScreenCaptureAsync('quiz').catch(() => {});
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
 
   const start = async () => {
     setFormError('');
@@ -137,10 +177,10 @@ export default function TakeQuizScreen() {
     }
   };
 
-  const submit = async () => {
+  const submit = async (force = false) => {
     if (!quiz || submitting) return;
     const unanswered = quiz.questions.filter((q) => answers[q.id] === undefined || answers[q.id] === '').length;
-    if (unanswered > 0 && secondsLeft !== 0) {
+    if (unanswered > 0 && secondsLeft !== 0 && !force) {
       const proceed = await new Promise<boolean>((resolve) => {
         Alert.alert('أسئلة بدون إجابة', `لديك ${unanswered} سؤال بدون إجابة. هل تريد التسليم؟`, [
           { text: 'رجوع', style: 'cancel', onPress: () => resolve(false) },
@@ -160,6 +200,8 @@ export default function TakeQuizScreen() {
         student_answers: answers,
         attemptToken: attemptToken || undefined,
         time_spent_seconds: Math.floor((Date.now() - startTimeRef.current) / 1000),
+        left_app_count: leftAppRef.current,
+        screenshot_attempts: shotsRef.current,
       });
       if (res.error) {
         Alert.alert('خطأ', res.error);
@@ -171,6 +213,65 @@ export default function TakeQuizScreen() {
       Alert.alert('فشل التسليم', e?.message || 'تحقق من الإنترنت وحاول مجدداً.');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // Student-facing PDF: the quiz with their answers + grading notes
+  const exportMyResult = async () => {
+    if (!quiz || !result) return;
+    setExporting(true);
+    try {
+      const esc = (s: any) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const answerText = (q: any, a: number | string | undefined) => {
+        if (a === undefined || a === '') return '<i>بدون إجابة</i>';
+        if (typeof a === 'number') return esc(q.options?.[a] ?? `اختيار ${a + 1}`);
+        return esc(a);
+      };
+      const qHtml = quiz.questions.map((q, i) => {
+        const fb = result.feedback?.[q.id];
+        const score = fb ? Number(fb.score ?? 0) : null;
+        const pts = Number(q.points) || 1;
+        const ok = fb?.isCorrect === true || fb?.status === 'correct' || score === pts;
+        const color = score === null ? '#64748b' : ok ? '#16a34a' : (score as number) > 0 ? '#d97706' : '#dc2626';
+        const steps = Array.isArray(fb?.steps)
+          ? fb.steps.map((s: any) => `<li>${esc(typeof s === 'string' ? s : s?.text || s?.description || '')}</li>`).join('')
+          : '';
+        return `<div class="q">
+          <div class="qhead"><b>س${i + 1}.</b> ${esc(q.text)} ${score !== null ? `<span class="pts" style="color:${color}">(${score} / ${pts})</span>` : ''}</div>
+          <div class="ans"><b>إجابتك:</b> ${answerText(q, answers[q.id])}</div>
+          ${fb?.feedback ? `<div class="fb"><b>ملاحظات التصحيح:</b> ${esc(fb.feedback)}</div>` : ''}
+          ${steps ? `<ul class="steps">${steps}</ul>` : ''}
+          ${fb?.correctExample ? `<div class="model"><b>الإجابة النموذجية:</b> ${esc(fb.correctExample)}</div>` : ''}
+        </div>`;
+      }).join('');
+      const html = `<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><style>
+        body{font-family:Arial,'Segoe UI';direction:rtl;padding:24px;color:#0f172a}
+        h1{font-size:20px} .meta{color:#475569;font-size:13px;margin:4px 0}
+        .score{font-size:26px;font-weight:800;color:#4f46e5;margin:12px 0}
+        .q{border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:12px 0}
+        .qhead{font-size:15px;line-height:1.7} .ans,.fb,.model{font-size:13px;margin-top:8px;color:#334155}
+        .fb{background:#f8fafc;padding:8px;border-radius:8px}
+        .model{color:#16a34a} .steps{font-size:12px;color:#475569;margin:6px 0;padding-right:18px}
+        .pts{font-size:12px;font-weight:700}
+        .foot{margin-top:24px;font-size:11px;color:#94a3b8;text-align:center}
+      </style></head><body>
+        <h1>${esc(quiz.title)}</h1>
+        <div class="meta">الطالب: ${esc(studentName)}${centerName ? ` • السنتر: ${esc(centerName)}` : ''}${quiz.teacher_name ? ` • المعلم: ${esc(quiz.teacher_name)}` : ''}</div>
+        <div class="meta">التاريخ: ${new Date().toLocaleString('ar-EG')}</div>
+        <div class="score">الدرجة: ${result.score ?? '—'} / ${result.total ?? '—'}</div>
+        ${qHtml}
+        <div class="foot">تم إنشاء هذا التقرير عبر تطبيق مصحح الواجبات الذكي</div>
+      </body></html>`;
+      const file = await Print.printToFileAsync({ html });
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(file.uri, { mimeType: 'application/pdf', dialogTitle: 'نتيجة الاختبار' });
+      } else {
+        await Print.printAsync({ html });
+      }
+    } catch {
+      Alert.alert('فشل التصدير', 'تعذر إنشاء ملف PDF — حاول مرة أخرى.');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -198,6 +299,9 @@ export default function TakeQuizScreen() {
           ) : (
             <Text style={typography.bodySecondary}>سيتم إعلان النتيجة من معلمك بعد المراجعة.</Text>
           )}
+          {showScore ? (
+            <Button title="📄 تحميل الاختبار مع إجاباتي والتصحيح" variant="secondary" onPress={exportMyResult} loading={exporting} style={{ alignSelf: 'stretch', marginTop: 16 }} />
+          ) : null}
           {showScore && result?.feedback ? (
             <View style={{ alignSelf: 'stretch', marginTop: 16, gap: 10 }}>
               {quiz.questions
@@ -282,6 +386,9 @@ export default function TakeQuizScreen() {
           ⏱ {Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, '0')}
         </Text>
       ) : null}
+      {leftAppCount > 0 ? (
+        <Text style={styles.cheatWarn}>⚠️ خروج من التطبيق مسجّل: {leftAppCount}/3</Text>
+      ) : null}
       {quiz.questions.map((q, i) => (
         <QuestionCard
           key={q.id}
@@ -310,4 +417,5 @@ const styles = StyleSheet.create({
   notifTitle: { color: '#fff', fontWeight: '800', fontSize: 14, textAlign: 'right' },
   notifMsg: { color: '#fef3c7', fontSize: 12, lineHeight: 20, textAlign: 'right', writingDirection: 'rtl', marginTop: 4 },
   notifMeta: { color: '#fde68a', fontSize: 10, textAlign: 'right', marginTop: 6 },
+  cheatWarn: { textAlign: 'center', fontSize: 12, fontWeight: '700', color: colors.danger, marginTop: 4 },
 });

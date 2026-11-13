@@ -64,6 +64,8 @@ export const submitQuiz = (
     student_answers: Record<string, unknown>;
     attemptToken?: string;
     time_spent_seconds?: number;
+    left_app_count?: number;
+    screenshot_attempts?: number;
   }
 ) => api.post<{
   success: boolean;

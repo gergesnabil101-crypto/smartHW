@@ -6527,7 +6527,10 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
         grade_level: quizData.grade_level || '',
         duration: req.body.duration || req.body.time_spent_seconds || null,
         time_spent_seconds: req.body.time_spent_seconds || req.body.duration || null,
-        ai_tokens_used: totalAiTokensInSubmission
+        ai_tokens_used: totalAiTokensInSubmission,
+        // Anti-cheat flags reported by the mobile client (screenshots blocked, app-background exits)
+        left_app_count: Math.max(0, Number(req.body.left_app_count) || 0),
+        screenshot_attempts: Math.max(0, Number(req.body.screenshot_attempts) || 0)
       };
 
       await resultRef.set(resultDocData, { merge: true });

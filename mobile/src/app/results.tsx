@@ -260,6 +260,7 @@ export default function ResultsScreen() {
         ListEmptyComponent={<EmptyState title="لا توجد نتائج" hint="نتائج طلاب هذا الاختبار ستظهر هنا بعد تسليمهم" />}
         renderItem={({ item }) => {
           const pct = item.total ? Math.round((Number(item.score) / Number(item.total)) * 100) : 0;
+          const cheatFlags = Number((item as any).left_app_count || 0) + Number((item as any).screenshot_attempts || 0);
           return (
             <Card onPress={() => router.push({ pathname: '/result/[id]', params: { id: String(item.id), quizId: item.quiz_id || '' } })}>
               <View style={styles.row}>
@@ -268,6 +269,11 @@ export default function ResultsScreen() {
                   <Text style={typography.caption} numberOfLines={1}>
                     {item.quiz_title || 'اختبار'} • {formatDate(item.created_at)}
                   </Text>
+                  {cheatFlags > 0 ? (
+                    <Text style={[typography.caption, { color: colors.danger, fontWeight: '700' }]} numberOfLines={1}>
+                      ⚠️ محاولات مشبوهة: خروج ×{Number((item as any).left_app_count || 0)}{Number((item as any).screenshot_attempts) ? ` • لقطة ×${Number((item as any).screenshot_attempts)}` : ''}
+                    </Text>
+                  ) : null}
                 </View>
                 <View style={[styles.scoreBadge, pct >= 50 ? styles.scorePass : styles.scoreFail]}>
                   <Text style={styles.scoreText}>{item.score}/{item.total}</Text>

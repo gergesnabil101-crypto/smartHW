@@ -21,7 +21,7 @@ interface TeacherNotif { id: string; title: string; message: string; targetType?
 
 export default function DashboardScreen() {
   const router = useRouter();
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const [quizzes, setQuizzes] = useState<Quiz[] | null>(null);
   const [teacherNotifs, setTeacherNotifs] = useState<TeacherNotif[]>([]);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
@@ -39,6 +39,7 @@ export default function DashboardScreen() {
   const load = useCallback(async () => {
     setError('');
     try {
+      refreshProfile?.(); // keep the token balance bar fresh after AI usage
       const [q, f] = await Promise.all([listMyQuizzes(), listFolders()]);
       setQuizzes(Array.isArray(q) ? q : []);
       setFolders(Array.isArray(f) ? f : []);
@@ -85,6 +86,32 @@ export default function DashboardScreen() {
     await load();
     setRefreshing(false);
   };
+
+  // Token balance bar — teacher sees remaining quota at a glance
+  const tokenBar = useMemo(() => {
+    const millions =
+      Number(profile?.custom_tokens_millions) ||
+      Number(String(profile?.subscription_type || '').match(/(\d+)\s*M/i)?.[1] || 0);
+    const quota = millions * 1e6 + Number(profile?.extra_tokens || 0);
+    if (quota <= 0) return null;
+    const used = Number(profile?.tokens_used || 0);
+    const left = Math.max(0, quota - used);
+    const pct = Math.min(1, used / quota);
+    const color = pct > 0.9 ? colors.danger : pct > 0.7 ? colors.warning : colors.success;
+    return (
+      <View style={styles.tokenBar}>
+        <View style={styles.tokenBarHead}>
+          <Text style={styles.tokenBarTitle}>⚡ رصيد التوكنز</Text>
+          <Text style={styles.tokenBarText}>
+            المتبقي {left.toLocaleString('en')} من {quota.toLocaleString('en')}
+          </Text>
+        </View>
+        <View style={styles.tokenTrack}>
+          <View style={[styles.tokenFill, { width: `${Math.max(2, Math.round(pct * 100))}%`, backgroundColor: color }]} />
+        </View>
+      </View>
+    );
+  }, [profile]);
 
   const visibleQuizzes = useMemo(() => {
     if (!quizzes) return [];
@@ -175,6 +202,7 @@ export default function DashboardScreen() {
         </ScrollView>
       </View>
 
+      {tokenBar}
       {error ? <ErrorState message={error} onRetry={load} /> : null}
 
       <FlatList
@@ -347,4 +375,10 @@ const styles = StyleSheet.create({
   notifMsg: { color: '#fef3c7', fontSize: 12, lineHeight: 20, textAlign: 'right', writingDirection: 'rtl', marginTop: 4 },
   notifMeta: { color: '#fde68a', fontSize: 10, textAlign: 'right', marginTop: 6 },
   notifClose: { color: '#fff', fontWeight: '800', fontSize: 14, paddingHorizontal: 6 },
+  tokenBar: { marginHorizontal: 16, marginBottom: 4, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: 12 },
+  tokenBarHead: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' },
+  tokenBarTitle: { fontSize: 13, fontWeight: '800', color: colors.text },
+  tokenBarText: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },
+  tokenTrack: { height: 8, borderRadius: 4, backgroundColor: colors.border, marginTop: 8, overflow: 'hidden', alignSelf: 'stretch' },
+  tokenFill: { height: '100%', borderRadius: 4 },
 });
