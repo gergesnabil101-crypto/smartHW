@@ -8,6 +8,7 @@ import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
 import { Loading, EmptyState, ErrorState } from '../../components/Feedback';
 import { db } from '../../lib/firebase';
+import { listAdminUsers } from '../../lib/services';
 import { useAuth, isAdminUser } from '../../store/AuthContext';
 import { colors, radius, typography } from '../../theme';
 
@@ -15,7 +16,7 @@ interface Notif {
   id: string;
   title: string;
   message: string;
-  targetType: 'all' | 'grade' | 'subject' | 'teacher';
+  targetType: 'all' | 'grade' | 'subject' | 'teacher' | 'teachers' | 'teacher_direct';
   targetValue: string;
   sender_email?: string;
   created_at?: string;
@@ -23,9 +24,11 @@ interface Notif {
 
 const TARGET_TYPES = [
   { key: 'all' as const, label: 'جميع الطلاب' },
-  { key: 'grade' as const, label: 'مرحلة دراسية' },
-  { key: 'subject' as const, label: 'مادة' },
-  { key: 'teacher' as const, label: 'معلم معين' },
+  { key: 'grade' as const, label: 'طلاب مرحلة دراسية' },
+  { key: 'subject' as const, label: 'طلاب مادة' },
+  { key: 'teacher' as const, label: 'طلاب معلم معين' },
+  { key: 'teachers' as const, label: 'جميع المعلمين' },
+  { key: 'teacher_direct' as const, label: 'معلم معين (شخصي)' },
 ];
 
 /** Admin broadcast center — mirrors the legacy web notification panel. */
@@ -43,21 +46,31 @@ export default function AdminNotificationsScreen() {
   const [sending, setSending] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  // Build unique target values (grades / subjects / teachers) from the students registry
+  const needsValue = targetType !== 'all' && targetType !== 'teachers';
+
+  // Build unique target values (grades / subjects / teachers) from the students registry + admin users
   const loadTargets = useCallback(async () => {
     try {
-      const snap = await getDocs(collection(db, 'students'));
       const set = new Set<string>();
+      if (targetType === 'teacher_direct') {
+        // Target a teacher account itself — names come from the admin user list
+        const users = await listAdminUsers().catch(() => []);
+        (users || []).forEach((u: any) => {
+          const n = String(u.name || '').trim();
+          if (n) set.add(n);
+        });
+      }
+      const snap = await getDocs(collection(db, 'students'));
       snap.forEach((d) => {
         const s = d.data() as any;
-        const v = targetType === 'grade' ? s.grade_level : targetType === 'subject' ? s.subject : s.teacher_name;
+        const v = targetType === 'grade' ? s.grade_level : targetType === 'subject' ? s.subject : (s.teacher_name || '');
         if (v && String(v).trim()) set.add(String(v).trim());
       });
       setValueOptions(Array.from(set).sort((a, b) => a.localeCompare(b, 'ar')));
     } catch { /* non-fatal — free text remains available */ }
   }, [targetType]);
 
-  useEffect(() => { if (targetType !== 'all') loadTargets(); }, [targetType, loadTargets]);
+  useEffect(() => { if (needsValue) loadTargets(); }, [needsValue, loadTargets]);
 
   const load = useCallback(async () => {
     setError('');
@@ -77,7 +90,7 @@ export default function AdminNotificationsScreen() {
 
   const send = async () => {
     if (!title.trim() || !message.trim()) return Alert.alert('ناقص', 'أدخل عنواناً ورسالة للإشعار.');
-    if (targetType !== 'all' && !targetValue.trim()) return Alert.alert('ناقص', 'اختر أو اكتب قيمة الاستهداف (المرحلة/المادة/المعلم).');
+    if (needsValue && !targetValue.trim()) return Alert.alert('ناقص', 'اختر أو اكتب قيمة الاستهداف (المرحلة/المادة/المعلم).');
     setSending(true);
     try {
       const ref = doc(collection(db, 'notifications'));
@@ -86,7 +99,7 @@ export default function AdminNotificationsScreen() {
         title: title.trim(),
         message: message.trim(),
         targetType,
-        targetValue: targetType === 'all' ? 'الكل' : targetValue.trim(),
+        targetValue: needsValue ? targetValue.trim() : 'الكل',
         sender_email: user?.email || 'gergesnabil101@gmail.com',
         created_at: new Date().toISOString(),
       });
@@ -117,9 +130,11 @@ export default function AdminNotificationsScreen() {
 
   const targetLabel = (n: Notif) =>
     n.targetType === 'all' ? 'جميع الطلاب'
-    : n.targetType === 'grade' ? `المرحلة: ${n.targetValue}`
-    : n.targetType === 'subject' ? `المادة: ${n.targetValue}`
-    : `المعلم: ${n.targetValue}`;
+    : n.targetType === 'teachers' ? 'جميع المعلمين'
+    : n.targetType === 'grade' ? `طلاب المرحلة: ${n.targetValue}`
+    : n.targetType === 'subject' ? `طلاب المادة: ${n.targetValue}`
+    : n.targetType === 'teacher' ? `طلاب المعلم: ${n.targetValue}`
+    : `المعلم (شخصي): ${n.targetValue}`;
 
   if (initialized && !user) return <Redirect href="/(auth)/login" />;
   if (notifs === null && !error) return <Screen><Loading text="جاري التحميل..." /></Screen>;
@@ -149,7 +164,7 @@ export default function AdminNotificationsScreen() {
                 </Pressable>
               ))}
             </View>
-            {targetType !== 'all' ? (
+            {needsValue ? (
               <>
                 <Pressable style={styles.selectBox} onPress={() => setPickerOpen(true)}>
                   <Text style={styles.selectLabel}>

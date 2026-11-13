@@ -1,20 +1,30 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { collection, getDocs } from 'firebase/firestore';
 import { Screen } from '../../components/Screen';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { Loading, EmptyState, ErrorState } from '../../components/Feedback';
 import { listMyQuizzes, listFolders, createFolder, deleteQuiz, deleteFolder, saveQuiz } from '../../lib/services';
+import { db } from '../../lib/firebase';
+import { useAuth } from '../../store/AuthContext';
 import { ShareSheet } from '../../features/quizzes/ShareSheet';
 import { API_BASE_URL } from '../../config';
 import type { Quiz, Folder } from '../../types';
 import { colors, radius, typography } from '../../theme';
 
+const DISMISSED_KEY = 'teacher_notif_dismissed';
+interface TeacherNotif { id: string; title: string; message: string; targetType?: string; targetValue?: string; created_at?: string }
+
 export default function DashboardScreen() {
   const router = useRouter();
+  const { user, profile } = useAuth();
   const [quizzes, setQuizzes] = useState<Quiz[] | null>(null);
+  const [teacherNotifs, setTeacherNotifs] = useState<TeacherNotif[]>([]);
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [folders, setFolders] = useState<Folder[]>([]);
   const [activeFolder, setActiveFolder] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -38,7 +48,37 @@ export default function DashboardScreen() {
     }
   }, []);
 
+  // Notifications addressed to teachers (broadcast 'teachers' or direct 'teacher_direct' to me)
+  const loadNotifs = useCallback(async () => {
+    try {
+      const snap = await getDocs(collection(db, 'notifications'));
+      const meName = String(profile?.name || user?.displayName || '').trim();
+      const meEmail = String(user?.email || '').trim().toLowerCase();
+      const list: TeacherNotif[] = [];
+      snap.forEach((d) => {
+        const n = { id: d.id, ...(d.data() as any) } as TeacherNotif;
+        const v = String(n.targetValue || '').trim();
+        if (n.targetType === 'teachers') list.push(n);
+        else if (n.targetType === 'teacher_direct' && (v === meName || v.toLowerCase() === meEmail)) list.push(n);
+      });
+      list.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+      const raw = await AsyncStorage.getItem(DISMISSED_KEY).catch(() => null);
+      const done = new Set<string>(raw ? JSON.parse(raw) : []);
+      setDismissed(done);
+      setTeacherNotifs(list.filter((n) => !done.has(n.id)));
+    } catch { /* notifications are best-effort */ }
+  }, [user?.uid, profile?.name]);
+
+  const dismissNotif = async (id: string) => {
+    const next = new Set(dismissed);
+    next.add(id);
+    setDismissed(next);
+    setTeacherNotifs((l) => l.filter((n) => n.id !== id));
+    await AsyncStorage.setItem(DISMISSED_KEY, JSON.stringify(Array.from(next))).catch(() => null);
+  };
+
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadNotifs(); }, [loadNotifs]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -143,6 +183,24 @@ export default function DashboardScreen() {
         refreshing={refreshing}
         onRefresh={onRefresh}
         contentContainerStyle={styles.list}
+        ListHeaderComponent={
+          teacherNotifs.length ? (
+            <View style={{ marginBottom: 10, gap: 8 }}>
+              {teacherNotifs.map((n) => (
+                <View key={n.id} style={styles.notifCard}>
+                  <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={styles.notifTitle}>🔔 {n.title}</Text>
+                    <Pressable onPress={() => dismissNotif(n.id)} hitSlop={8}>
+                      <Text style={styles.notifClose}>✕</Text>
+                    </Pressable>
+                  </View>
+                  <Text style={styles.notifMsg}>{n.message}</Text>
+                  <Text style={styles.notifMeta}>إشعار من إدارة المنصة{n.created_at ? ` • ${new Date(n.created_at).toLocaleDateString('ar-EG')}` : ''}</Text>
+                </View>
+              ))}
+            </View>
+          ) : undefined
+        }
         ListEmptyComponent={
           <EmptyState
             title="لا توجد اختبارات بعد"
@@ -284,4 +342,9 @@ const styles = StyleSheet.create({
   modalCard: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: 20, gap: 10 },
   modalActions: { flexDirection: 'row', gap: 10, marginTop: 6 },
   buildTag: { position: 'absolute', bottom: 2, left: 20, fontSize: 9, color: colors.textMuted },
+  notifCard: { backgroundColor: '#b45309', borderRadius: radius.md, padding: 12 },
+  notifTitle: { color: '#fff', fontWeight: '800', fontSize: 14, textAlign: 'right', flex: 1 },
+  notifMsg: { color: '#fef3c7', fontSize: 12, lineHeight: 20, textAlign: 'right', writingDirection: 'rtl', marginTop: 4 },
+  notifMeta: { color: '#fde68a', fontSize: 10, textAlign: 'right', marginTop: 6 },
+  notifClose: { color: '#fff', fontWeight: '800', fontSize: 14, paddingHorizontal: 6 },
 });

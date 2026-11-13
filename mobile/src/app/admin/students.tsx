@@ -68,30 +68,41 @@ export default function AdminStudentsScreen() {
           last_exam_date: String(s.last_exam_date || s.updated_at || s.created_at || '') > String(prev?.last_exam_date || '') ? (s.last_exam_date || s.updated_at || s.created_at) : prev?.last_exam_date,
         });
       });
-      // Fallback like the legacy app: if registry is empty, aggregate from results
-      if (map.size === 0) {
-        const rs = await getDocs(collection(db, 'results'));
-        rs.forEach((d) => {
-          const r = d.data() as any;
-          const name = String(r.student_name || '').trim();
-          const phone = String(r.student_phone || '').trim();
-          if (!name && !phone) return;
-          const key = `${name}|${phone}`;
-          const prev = map.get(key);
-          map.set(key, {
-            id: d.id,
-            student_name: name,
-            student_phone: phone,
-            parent_phone: r.parent_phone || prev?.parent_phone,
-            center_name: r.center_name || prev?.center_name,
-            grade_level: r.grade_level || prev?.grade_level,
-            subject: r.subject || prev?.subject,
-            teacher_name: r.teacher_name || prev?.teacher_name,
-            exams_count: (prev?.exams_count || 0) + 1,
-            last_exam_date: String(r.created_at || '') > String(prev?.last_exam_date || '') ? r.created_at : prev?.last_exam_date,
-          });
+      // Always merge results — students exist there even if never synced to `students`
+      // (legacy app did this only when empty, which hid unsynced teachers' students)
+      const registryKeys = new Set(map.keys());
+      const rs = await getDocs(collection(db, 'results'));
+      rs.forEach((d) => {
+        const r = d.data() as any;
+        const name = String(r.student_name || '').trim();
+        const phone = String(r.student_phone || '').trim();
+        if (!name && !phone) return;
+        const key = `${name}|${phone}`;
+        const prev = map.get(key);
+        if (prev) {
+          if (!registryKeys.has(key)) prev.exams_count = (prev.exams_count || 0) + 1;
+          // Fill gaps without overwriting the authoritative registry fields
+          if (!prev.teacher_name && r.teacher_name) prev.teacher_name = r.teacher_name;
+          if (!prev.grade_level && r.grade_level) prev.grade_level = r.grade_level;
+          if (!prev.subject && r.subject) prev.subject = r.subject;
+          if (!prev.center_name && r.center_name) prev.center_name = r.center_name;
+          if (!prev.parent_phone && r.parent_phone) prev.parent_phone = r.parent_phone;
+          if (String(r.created_at || '') > String(prev.last_exam_date || '')) prev.last_exam_date = r.created_at;
+          return;
+        }
+        map.set(key, {
+          id: d.id,
+          student_name: name,
+          student_phone: phone,
+          parent_phone: r.parent_phone,
+          center_name: r.center_name,
+          grade_level: r.grade_level,
+          subject: r.subject,
+          teacher_name: r.teacher_name,
+          exams_count: 1,
+          last_exam_date: r.created_at,
         });
-      }
+      });
       setStudents(Array.from(map.values()).sort((a, b) => a.student_name.localeCompare(b.student_name, 'ar')));
     } catch (e: any) {
       setError(e?.message || 'تعذر تحميل سجلات الطلاب.');

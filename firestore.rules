@@ -209,7 +209,7 @@ service cloud.firestore {
              (!('id' in data) || (data.id is string && data.id.size() > 0 && data.id.size() < 100)) &&
              data.title is string && data.title.size() > 0 && data.title.size() < 300 &&
              data.message is string && data.message.size() > 0 && data.message.size() < 3000 &&
-             (!('targetType' in data) || data.targetType in ['all', 'grade', 'subject', 'teacher']) &&
+             (!('targetType' in data) || data.targetType in ['all', 'grade', 'subject', 'teacher', 'teachers', 'teacher_direct']) &&
              (!('targetValue' in data) || (data.targetValue is string && data.targetValue.size() < 200)) &&
              (!('sender_email' in data) || (data.sender_email is string && data.sender_email.size() < 100)) &&
              data.created_at is string;

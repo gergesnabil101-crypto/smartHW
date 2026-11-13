@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { collection, getDocs } from 'firebase/firestore';
 import { Screen } from '../../components/Screen';
 import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
@@ -8,9 +9,12 @@ import { Card } from '../../components/Card';
 import { Loading, ErrorState } from '../../components/Feedback';
 import { QuestionCard } from '../../components/QuestionCard';
 import { checkAttempts, getQuizPublic, startAttempt, submitQuiz } from '../../lib/services';
+import { db } from '../../lib/firebase';
 import { LIMITS } from '../../config';
 import type { Quiz } from '../../types';
 import { colors, radius, typography } from '../../theme';
+
+interface Notif { id: string; title: string; message: string; targetType?: string; targetValue?: string; created_at?: string }
 
 type Phase = 'intro' | 'quiz' | 'done';
 
@@ -35,6 +39,7 @@ export default function TakeQuizScreen() {
   const [answers, setAnswers] = useState<Record<string, number | string>>({});
   const startTimeRef = useRef<number>(0);
   const [result, setResult] = useState<{ score?: number; total?: number; feedback?: Record<string, any> } | null>(null);
+  const [notifs, setNotifs] = useState<Notif[]>([]);
 
   useEffect(() => {
     if (!id) return;
@@ -42,6 +47,30 @@ export default function TakeQuizScreen() {
       .then(setQuiz)
       .catch((e) => setLoadError(e?.message || 'تعذر تحميل الاختبار.'));
   }, [id]);
+
+  // Platform announcements for students — filtered exactly like the legacy web take-intro view
+  useEffect(() => {
+    if (!quiz) return;
+    (async () => {
+      try {
+        const snap = await getDocs(collection(db, 'notifications'));
+        const grade = Array.isArray(quiz.grade_level) ? quiz.grade_level[0] : quiz.grade_level;
+        const list: Notif[] = [];
+        snap.forEach((d) => {
+          const n = { id: d.id, ...(d.data() as any) } as Notif;
+          const v = String(n.targetValue || '').trim();
+          const ok =
+            !n.targetType || n.targetType === 'all' ||
+            (n.targetType === 'grade' && (!v || v === 'الكل' || v === grade)) ||
+            (n.targetType === 'subject' && (!v || v === 'الكل' || v === quiz.subject)) ||
+            (n.targetType === 'teacher' && (!v || v === 'الكل' || v === quiz.teacher_name));
+          if (ok) list.push(n);
+        });
+        list.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+        setNotifs(list);
+      } catch { /* announcements are best-effort */ }
+    })();
+  }, [quiz]);
 
   const timeLimitMin = useMemo(() => (quiz?.time_limit ? Number(quiz.time_limit) : null), [quiz]);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
@@ -213,6 +242,17 @@ export default function TakeQuizScreen() {
   if (phase === 'intro') {
     return (
       <Screen>
+        {notifs.length ? (
+          <View style={{ gap: 8, marginBottom: 12 }}>
+            {notifs.map((n) => (
+              <View key={n.id} style={styles.notifCard}>
+                <Text style={styles.notifTitle}>🔔 {n.title}</Text>
+                <Text style={styles.notifMsg}>{n.message}</Text>
+                <Text style={styles.notifMeta}>إشعار من إدارة المنصة{n.created_at ? ` • ${new Date(n.created_at).toLocaleDateString('ar-EG')}` : ''}</Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
         <Text style={[typography.h1, styles.center]}>{quiz.title}</Text>
         {quiz.teacher_name ? <Text style={[typography.bodySecondary, styles.center]}>المعلم: {quiz.teacher_name}</Text> : null}
         <Text style={[typography.caption, styles.center]}>
@@ -266,4 +306,8 @@ const styles = StyleSheet.create({
   timerUrgent: { color: colors.danger },
   scoreCard: { alignItems: 'center', padding: 24, alignSelf: 'stretch' },
   scoreText: { fontSize: 40, fontWeight: '800', color: colors.primary },
+  notifCard: { backgroundColor: '#b45309', borderRadius: radius.md, padding: 12 },
+  notifTitle: { color: '#fff', fontWeight: '800', fontSize: 14, textAlign: 'right' },
+  notifMsg: { color: '#fef3c7', fontSize: 12, lineHeight: 20, textAlign: 'right', writingDirection: 'rtl', marginTop: 4 },
+  notifMeta: { color: '#fde68a', fontSize: 10, textAlign: 'right', marginTop: 6 },
 });
