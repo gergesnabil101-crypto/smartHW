@@ -142,3 +142,26 @@
 - نشر السيرفر: `"$LOCALAPPDATA/Google/Cloud SDK/google-cloud-sdk/bin/gcloud.cmd" run deploy mosahah-api --source . --region europe-west1 --project gen-lang-client-0552360485`
 - مشكلة Metro 500: امسح `.expo/cache` + `node_modules/.cache` + تأكد مفيش node قديم على 8081
 - مشكلة "التحديث مش بيظهر على الموبايل": وضع CI مبيعملش watch — اقتل العملية على 8081 وشغّل `npx expo start --port 8081 --clear` (CI=true) ثم افتح التطبيق من جديد
+
+## استئناف — 14 نوفمبر (اختبار الحمل + IAP + إصلاح Metro)
+
+### ✅ تم اليوم
+- اختبار حمل Locust + k6 على السيرفر المباشر — 0.17% فشل فقط، p95=2.2s (قفزات cold start في Cloud Run — لو عايز ثبات كامل فعّل min-instances=1)
+- `test/load/k6-quiz.js` + `test/load/locustfile.py` جاهزين لإعادة التشغيل
+- تدفق Google Play Billing كامل (زر بالسعر المحلي → شراء → تحقق `/api/iap/android/verify` → تفعيل)
+- صفحة `/privacy` على السيرفر لمطلوب Play Console
+- تبديل اللغة عربي/إنجليزي + حفظ QR في المعرض + عرض السؤال كاملاً + unslop design pass
+- إصلاحات الأدمن: خطة/حالة طبيعية، استهلاك حقيقي+تجاري، نشاط الطلاب اليومي، اختيار عملة
+
+### ⚠️ تشغيل Metro على هذا الجهاز
+- **لازم `CI=true`** — الواتشر بيعلّق بدون watchman: `CI=true npx expo start --host lan`
+- **مافيش live reload** — أي تعديل = إعادة تشغيل Metro
+- أول بناء ~20 دقيقة (الجهاز بطيء + Defender) — بعدها متكاش وفوري
+- العنوان: `exp://192.168.1.38:8081`
+- تحسين اختياري: إضافة `C:\devin` لاستثناءات Windows Defender
+
+### ⏭️ بكرة
+1. `eas build --profile development` عشان تجربة IAP الحقيقية (مش شغال في Expo Go)
+2. إنشاء منتجات الاشتراك في Play Console بنفس الـ product IDs في `lib/plans.ts`
+3. تفعيل Google Play Developer API لحساب الخدمة (لتحقق الشراء في السيرفر)
+4. AAB production → رفع على Play Console + رابط `/privacy` في Data safety
