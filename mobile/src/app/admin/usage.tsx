@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { Redirect } from 'expo-router';
 import { collection, getDocs, orderBy, query, where } from 'firebase/firestore';
@@ -17,16 +17,11 @@ interface UsageRow {
   plan: string;
   prompt_tokens: number;
   candidates_tokens: number;
-  total_tokens: number;
+  real_tokens: number;
+  billable_tokens: number;
+  cost_egp: number;
   ops: Record<string, number>;
 }
-
-const toDate = (v: any): Date | null => {
-  if (!v) return null;
-  if (v?.toDate) return v.toDate();
-  const d = new Date(typeof v === 'object' && v.seconds ? v.seconds * 1000 : v);
-  return isNaN(d.getTime()) ? null : d;
-};
 
 const OP_LABELS: Record<string, string> = {
   essay_grading: 'تصحيح مقالي',
@@ -37,13 +32,17 @@ const OP_LABELS: Record<string, string> = {
   general: 'معالجة عامة',
 };
 
+/** Billable (commercial) tokens: output is multiplied x5 Flash / x6 Pro, matching server tokenAccounting. */
+const billableFor = (prompt: number, candidates: number, model: string) =>
+  prompt + candidates * (model.toLowerCase().includes('pro') ? 6 : 5);
+
 /** Daily token consumption across all accounts — sourced from token_usage_logs. */
 export default function AdminUsageScreen() {
   const { initialized, user, profile } = useAuth();
   const isAdmin = isAdminUser(profile as any, user?.email);
   const [rows, setRows] = useState<UsageRow[] | null>(null);
   const [error, setError] = useState('');
-  const [totals, setTotals] = useState({ input: 0, output: 0, total: 0 });
+  const [totals, setTotals] = useState({ input: 0, output: 0, real: 0, billable: 0, cost: 0 });
 
   const load = useCallback(async () => {
     setError('');
@@ -53,7 +52,6 @@ export default function AdminUsageScreen() {
       const q = query(collection(db, 'token_usage_logs'), where('timestamp', '>=', dayStart), orderBy('timestamp', 'desc'));
       const snap = await getDocs(q);
 
-      // Map uid/email → plan name
       let planById: Record<string, string> = {};
       try {
         const users = await listAdminUsers();
@@ -65,26 +63,34 @@ export default function AdminUsageScreen() {
       } catch { /* plan map is best-effort */ }
 
       const agg = new Map<string, UsageRow>();
-      const t = { input: 0, output: 0, total: 0 };
+      const t = { input: 0, output: 0, real: 0, billable: 0, cost: 0 };
       snap.forEach((d) => {
         const l = d.data() as any;
         const key = String(l.user_id || l.user_email || 'unknown');
         const row: UsageRow = agg.get(key) || {
           user_id: key, user_name: l.user_name || '', user_email: l.user_email || '',
           plan: planById[key] || planById[l.user_email] || '—',
-          prompt_tokens: 0, candidates_tokens: 0, total_tokens: 0, ops: {},
+          prompt_tokens: 0, candidates_tokens: 0, real_tokens: 0, billable_tokens: 0, cost_egp: 0, ops: {},
         };
-        row.prompt_tokens += Number(l.prompt_tokens || 0);
-        row.candidates_tokens += Number(l.candidates_tokens || 0);
-        row.total_tokens += Number(l.total_tokens || 0);
+        const prompt = Number(l.prompt_tokens || 0);
+        const candidates = Number(l.candidates_tokens || 0);
+        const model = String(l.model || '');
+        const billable = Number(l.total_tokens) || billableFor(prompt, candidates, model);
+        row.prompt_tokens += prompt;
+        row.candidates_tokens += candidates;
+        row.real_tokens += prompt + candidates;
+        row.billable_tokens += billable;
+        row.cost_egp += Number(l.cost_egp || 0);
         const op = String(l.operation || 'general');
         row.ops[op] = (row.ops[op] || 0) + 1;
         agg.set(key, row);
-        t.input += Number(l.prompt_tokens || 0);
-        t.output += Number(l.candidates_tokens || 0);
-        t.total += Number(l.total_tokens || 0);
+        t.input += prompt;
+        t.output += candidates;
+        t.real += prompt + candidates;
+        t.billable += billable;
+        t.cost += Number(l.cost_egp || 0);
       });
-      setRows(Array.from(agg.values()).sort((a, b) => b.total_tokens - a.total_tokens));
+      setRows(Array.from(agg.values()).sort((a, b) => b.billable_tokens - a.billable_tokens));
       setTotals(t);
     } catch (e: any) {
       setError(e?.message || 'تعذر تحميل استهلاك اليوم.');
@@ -100,7 +106,7 @@ export default function AdminUsageScreen() {
     return <Screen><ErrorState message="غير مصرح — هذه الصفحة متاحة لمديري المنصة فقط." /></Screen>;
   }
 
-  const fmt = (n: number) => n.toLocaleString('en');
+  const fmt = (n: number) => Math.round(n).toLocaleString('en');
 
   return (
     <Screen scroll={false}>
@@ -123,9 +129,19 @@ export default function AdminUsageScreen() {
                 <Text style={styles.totalNum}>{fmt(totals.output)}</Text>
                 <Text style={styles.totalLabel}>مخرجات 📤</Text>
               </View>
+            </View>
+            <View style={styles.totalsRow}>
               <View style={styles.totalBox}>
-                <Text style={[styles.totalNum, { color: colors.primary }]}>{fmt(totals.total)}</Text>
-                <Text style={styles.totalLabel}>الإجمالي ⚡</Text>
+                <Text style={styles.totalNum}>{fmt(totals.real)}</Text>
+                <Text style={styles.totalLabel}>حقيقي (API)</Text>
+              </View>
+              <View style={styles.totalBox}>
+                <Text style={[styles.totalNum, { color: colors.primary }]}>{fmt(totals.billable)}</Text>
+                <Text style={styles.totalLabel}>تجاري (مفوتر) ⚡</Text>
+              </View>
+              <View style={styles.totalBox}>
+                <Text style={[styles.totalNum, { color: colors.warning }]}>{totals.cost.toFixed(2)}</Text>
+                <Text style={styles.totalLabel}>التكلفة ج.م</Text>
               </View>
             </View>
             <Text style={[typography.caption, { textAlign: 'right' }]}>{rows?.length || 0} حساب نشط اليوم — اسحب للتحديث</Text>
@@ -149,9 +165,14 @@ export default function AdminUsageScreen() {
                 <Text style={styles.totalLabel}>مخرجات</Text>
               </View>
               <View style={styles.totalBox}>
-                <Text style={[styles.smallNum, { color: colors.primary }]}>{fmt(item.total_tokens)}</Text>
-                <Text style={styles.totalLabel}>الإجمالي</Text>
+                <Text style={styles.smallNum}>{fmt(item.real_tokens)}</Text>
+                <Text style={styles.totalLabel}>حقيقي</Text>
               </View>
+            </View>
+            <View style={styles.billableRow}>
+              <Text style={styles.billableLabel}>الاستهلاك التجاري (المفوتر):</Text>
+              <Text style={styles.billableNum}>{fmt(item.billable_tokens)}</Text>
+              <Text style={styles.costText}>{item.cost_egp > 0 ? `≈ ${item.cost_egp.toFixed(2)} ج.م` : ''}</Text>
             </View>
             {Object.keys(item.ops).length ? (
               <Text style={typography.caption}>
@@ -168,11 +189,18 @@ export default function AdminUsageScreen() {
 const styles = StyleSheet.create({
   list: { padding: 16, flexGrow: 1 },
   totalsCard: { marginBottom: 8 },
-  totalsRow: { flexDirection: 'row-reverse', justifyContent: 'space-around', marginVertical: 10 },
+  totalsRow: { flexDirection: 'row-reverse', justifyContent: 'space-around', marginVertical: 8 },
   totalBox: { alignItems: 'center', minWidth: 80 },
   totalNum: { fontSize: 18, fontWeight: '900', color: colors.text },
   smallNum: { fontSize: 15, fontWeight: '800', color: colors.text },
   totalLabel: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
   headRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   planBadge: { fontSize: 12, fontWeight: '800', color: colors.text, backgroundColor: colors.primarySoft, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4, overflow: 'hidden' },
+  billableRow: {
+    flexDirection: 'row-reverse', alignItems: 'center', gap: 8,
+    backgroundColor: colors.primarySoft, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginTop: 4,
+  },
+  billableLabel: { flex: 1, fontSize: 12, color: colors.textSecondary, textAlign: 'right' },
+  billableNum: { fontSize: 16, fontWeight: '900', color: colors.primary },
+  costText: { fontSize: 11, color: colors.textMuted },
 });

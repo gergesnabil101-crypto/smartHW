@@ -54,17 +54,17 @@ export const shadows = {
     elevation: 2,
   },
   elev: {
-    shadowColor: '#4f46e5',
+    shadowColor: '#334155',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.10,
     shadowRadius: 10,
-    elevation: 5,
+    elevation: 4,
   },
   elevDanger: {
-    shadowColor: '#dc2626',
+    shadowColor: '#334155',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.10,
     shadowRadius: 10,
-    elevation: 5,
+    elevation: 4,
   },
 } as const;

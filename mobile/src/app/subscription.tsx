@@ -6,8 +6,9 @@ import * as ImagePicker from 'expo-image-picker';
 import { doc, setDoc, updateDoc, collection } from 'firebase/firestore';
 import { useAuth } from '../store/AuthContext';
 import { db } from '../lib/firebase';
-import { getPricing } from '../lib/services';
-import { PLANS, PLAN_GROUPS, type PlanOption } from '../lib/plans';
+import { getPricing, verifyPlayPurchase } from '../lib/services';
+import { useIAP } from 'expo-iap';
+import { PLANS, PLAN_GROUPS, currencyLabel, type PlanOption } from '../lib/plans';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
@@ -28,20 +29,80 @@ export default function SubscriptionScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [pricePerMillion, setPricePerMillion] = useState({ flash: 200, pro: 250 });
+  const [cur, setCur] = useState('ج.م');
+  const [planOverrides, setPlanOverrides] = useState<Record<string, { monthly?: number; yearly?: number }>>({});
+  const [verifying, setVerifying] = useState(false);
+
+  // Google Play Billing — live in production builds (iap mode). In Expo Go the
+  // native module is absent, so `connected` stays false and we show a hint.
+  const { connected, subscriptions, fetchProducts, requestPurchase, finishTransaction } = useIAP({
+    onPurchaseSuccess: async (purchase: any) => {
+      try {
+        setVerifying(true);
+        const token = purchase?.purchaseToken ?? purchase?.purchaseTokenAndroid;
+        const productId = String(purchase?.productId ?? purchase?.id ?? '');
+        if (!token || !productId) throw new Error('بيانات الشراء ناقصة من المتجر.');
+        await verifyPlayPurchase(productId, String(token));
+        await finishTransaction({ purchase, isConsumable: false }).catch(() => {});
+        await refreshProfile?.().catch(() => {});
+        setSelected(null);
+        Alert.alert('تم تفعيل اشتراكك ✅', 'شكراً! تم تفعيل باقتك عبر Google Play ورصيدك الجديد جاهز.');
+      } catch (e: any) {
+        Alert.alert('تعذر تفعيل الاشتراك', 'تم الدفع لدى المتجر لكن فشل التفعيل — تواصل معنا عبر واتساب وسنفعّله يدوياً فوراً.\n' + (e?.message || ''));
+      } finally {
+        setVerifying(false);
+      }
+    },
+    onPurchaseError: (error: any) => {
+      if (String(error?.code || '') === 'user-cancelled') return;
+      Alert.alert('فشل الشراء', error?.message || 'حدث خطأ أثناء الدفع عبر Google Play.');
+    },
+    onError: (e: any) => { /* store connection unavailable (Expo Go) — silent */ },
+  });
 
   useEffect(() => {
-    if (PAYMENTS_MODE !== 'manual') return;
+    if (PAYMENTS_MODE === 'iap' && connected) {
+      fetchProducts({ skus: PLANS.map((p) => p.id), type: 'subs' }).catch(() => {});
+    }
+  }, [connected]);
+
+  const playPrice = (p: PlanOption): string | null => {
+    const s = (subscriptions as any[]).find((x) => String(x.id ?? x.productId ?? '') === p.id);
+    return s?.displayPrice ?? s?.localizedPrice ?? null;
+  };
+
+  const buyWithPlay = (p: PlanOption) => {
+    if (!connected) {
+      return Alert.alert('المتجر غير متصل', 'الشراء داخل التطبيق يعمل على النسخة المثبتة من Google Play. في Expo Go الميزة معطلة.', [
+        { text: 'حسناً', style: 'cancel' },
+        { text: 'واتساب', onPress: askWhatsApp },
+      ]);
+    }
+    requestPurchase({
+      request: { google: { skus: [p.id], obfuscatedAccountId: user?.uid || undefined } },
+      type: 'subs',
+    }).catch(() => {});
+  };
+
+  useEffect(() => {
     getPricing()
-      .then((cfg) => setPricePerMillion({
-        flash: Number(cfg?.flash_price_per_million) > 0 ? Number(cfg.flash_price_per_million) : 200,
-        pro: Number(cfg?.pro_price_per_million) > 0 ? Number(cfg.pro_price_per_million) : 250,
-      }))
+      .then((cfg) => {
+        setPricePerMillion({
+          flash: Number(cfg?.flash_price_per_million) > 0 ? Number(cfg.flash_price_per_million) : 200,
+          pro: Number(cfg?.pro_price_per_million) > 0 ? Number(cfg.pro_price_per_million) : 250,
+        });
+        setCur(currencyLabel(cfg));
+        if (cfg?.plan_prices) setPlanOverrides(cfg.plan_prices);
+      })
       .catch(() => {});
   }, []);
 
   const price = useMemo(
-    () => (p: PlanOption) => (cycle === 'monthly' ? p.monthlyPrice : p.yearlyPrice),
-    [cycle]
+    () => (p: PlanOption) => {
+      const o = planOverrides[p.id];
+      return Number(cycle === 'monthly' ? (o?.monthly ?? p.monthlyPrice) : (o?.yearly ?? p.yearlyPrice)) || p.monthlyPrice;
+    },
+    [cycle, planOverrides]
   );
 
   const MILLION = 1_000_000;
@@ -160,7 +221,7 @@ export default function SubscriptionScreen() {
       setUpgradeOpen(false);
       setReceipt(null);
       refreshProfile?.().catch(() => {});
-      Alert.alert('تم إرسال طلب الترقية ✅', `وصلنا طلب الترقية إلى برو وإيصال فارق السعر بمبلغ ${upgradeCalc.total} ج.م. سيتم تفعيل نظام برو لحسابك فور مراجعة الدفع.`);
+      Alert.alert('تم إرسال طلب الترقية ✅', `وصلنا طلب الترقية إلى برو وإيصال فارق السعر بمبلغ ${upgradeCalc.total} ${cur}. سيتم تفعيل نظام برو لحسابك فور مراجعة الدفع.`);
     } catch (e: any) {
       Alert.alert('فشل إرسال الطلب', e?.message || 'تأكد من الاتصال وحاول مرة أخرى.');
     } finally {
@@ -194,15 +255,15 @@ export default function SubscriptionScreen() {
           </Text>
           <Text style={styles.upgradeLine}>
             {upgradeCalc.remaining > 0
-              ? `ادفع فارق السعر فقط على رصيدك المتبقي (${upgradeCalc.diffPerMillion} ج.م لكل مليون توكن): ${upgradeCalc.upgradeCost} ج.م`
-              : `رصيدك منتهٍ — فعّل باقة برو جديدة (1 مليون توكن): ${upgradeCalc.total} ج.م`}
-            {upgradeCalc.excessCost > 0 ? ` + تسوية تجاوز ${upgradeCalc.excess.toLocaleString('en')} توكن: ${upgradeCalc.excessCost} ج.م` : ''}
+              ? `ادفع فارق السعر فقط على رصيدك المتبقي (${upgradeCalc.diffPerMillion} ${cur} لكل مليون توكن): ${upgradeCalc.upgradeCost} ${cur}`
+              : `رصيدك منتهٍ — فعّل باقة برو جديدة (1 مليون توكن): ${upgradeCalc.total} ${cur}`}
+            {upgradeCalc.excessCost > 0 ? ` + تسوية تجاوز ${upgradeCalc.excess.toLocaleString('en')} توكن: ${upgradeCalc.excessCost} ${cur}` : ''}
           </Text>
           {profile?.hasPendingSubscription ? (
             <Text style={styles.upgradePending}>⏳ لديك طلب اشتراك قيد المراجعة بالفعل</Text>
           ) : (
             <Pressable onPress={() => { setReceipt(null); setUpgradeOpen(true); }} style={styles.upgradeBtn}>
-              <Text style={styles.upgradeBtnText}>🚀 ترقية الآن بفارق {upgradeCalc.total} ج.م</Text>
+              <Text style={styles.upgradeBtnText}>🚀 ترقية الآن بفارق {upgradeCalc.total} {cur}</Text>
             </Pressable>
           )}
         </Card>
@@ -210,7 +271,11 @@ export default function SubscriptionScreen() {
 
       {PLAN_GROUPS.map((g) => (
         <View key={g.key}>
-          <Text style={[typography.h3, styles.groupTitle]}>{g.title}</Text>
+          <Text style={[typography.h3, styles.groupTitle]}>
+            {g.key === 'tokens'
+              ? `باقات التوكنز — فلاش ⚡ (${pricePerMillion.flash} ${cur} / مليون)`
+              : `باقات التوكنز — برو 👑 (${pricePerMillion.pro} ${cur} / مليون)`}
+          </Text>
           {PLANS.filter((p) => p.group === g.key).map((p) => (
             <Card key={p.id} onPress={() => setSelected(p)} style={p.popular ? styles.popularCard : undefined}>
               <View style={styles.planHead}>
@@ -223,8 +288,17 @@ export default function SubscriptionScreen() {
                   </Text>
                 </View>
                 <View style={styles.priceBox}>
-                  <Text style={styles.priceNum}>{price(p)}</Text>
-                  <Text style={styles.priceUnit}>ج.م / {cycle === 'monthly' ? 'شهر' : 'سنة'}</Text>
+                  {PAYMENTS_MODE === 'iap' && playPrice(p) ? (
+                    <>
+                      <Text style={styles.priceNum}>{playPrice(p)}</Text>
+                      <Text style={styles.priceUnit}>{cycle === 'monthly' ? 'شهر' : 'سنة'}</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.priceNum}>{price(p)}</Text>
+                      <Text style={styles.priceUnit}>{cur} / {cycle === 'monthly' ? 'شهر' : 'سنة'}</Text>
+                    </>
+                  )}
                 </View>
               </View>
               <Pressable onPress={() => setSelected(p)} style={styles.subscribeBtn}>
@@ -246,7 +320,7 @@ export default function SubscriptionScreen() {
             <ScrollView>
               <Text style={typography.h2}>{selected?.name}</Text>
               <Text style={styles.modalPrice}>
-                {selected ? price(selected) : 0} ج.م / {cycle === 'monthly' ? 'شهر' : 'سنة'}
+                {selected ? price(selected) : 0} {cur} / {cycle === 'monthly' ? 'شهر' : 'سنة'}
               </Text>
               {selected?.features.map((f, i) => (
                 <Text key={i} style={styles.feature}>• {f}</Text>
@@ -254,12 +328,13 @@ export default function SubscriptionScreen() {
               {PAYMENTS_MODE === 'iap' ? (
                 <>
                   <Text style={styles.payHint}>
-                    الاشتراك يتم عبر Google Play داخل التطبيق — سيتم تفعيل الدفع فور إتاحة منتجات الاشتراك على المتجر. للاستفسار أو الحالات الخاصة تواصل معنا على واتساب.
+                    الدفع يتم بأمان عبر Google Play بعملتك المحلية ووسيلة الدفع المسجلة لديك — يتجدد شهرياً ويمكن إلغاؤه من إعدادات متجر Play في أي وقت.
                   </Text>
-                  <Button title="💳 اشترك عبر Google Play" onPress={() => Alert.alert('الاشتراك عبر Google Play', 'سيتم تفعيل الشراء داخل التطبيق مع نشر منتجات الاشتراك على Play Console. للتفعيل الفوري تواصل مع الإدارة عبر واتساب.', [
-                    { text: 'حسناً', style: 'cancel' },
-                    { text: 'واتساب', onPress: askWhatsApp },
-                  ])} />
+                  <Button
+                    title={verifying ? 'جاري تفعيل الاشتراك...' : `💳 اشترك عبر Google Play — ${selected ? (playPrice(selected) ?? `${price(selected)} ${cur}`) : ''}`}
+                    onPress={() => selected && buyWithPlay(selected)}
+                    loading={verifying}
+                  />
                 </>
               ) : (
                 <>
@@ -287,11 +362,11 @@ export default function SubscriptionScreen() {
           <View style={styles.modalCard}>
             <ScrollView>
               <Text style={typography.h2}>👑 ترقية إلى نظام برو</Text>
-              <Text style={styles.modalPrice}>{upgradeCalc.total} ج.م — دفعة واحدة</Text>
+              <Text style={styles.modalPrice}>{upgradeCalc.total} {cur} — دفعة واحدة</Text>
               <Text style={styles.feature}>• الرصيد المتبقي: {upgradeCalc.remaining.toLocaleString('en')} توكن</Text>
-              <Text style={styles.feature}>• فارق الترقية: {upgradeCalc.upgradeCost} ج.م ({upgradeCalc.diffPerMillion} ج.م/مليون)</Text>
+              <Text style={styles.feature}>• فارق الترقية: {upgradeCalc.upgradeCost} {cur} ({upgradeCalc.diffPerMillion} {cur}/مليون)</Text>
               {upgradeCalc.excessCost > 0 ? (
-                <Text style={styles.feature}>• تسوية تجاوز: {upgradeCalc.excessCost} ج.م</Text>
+                <Text style={styles.feature}>• تسوية تجاوز: {upgradeCalc.excessCost} {cur}</Text>
               ) : null}
               <Text style={styles.feature}>• يتحول حسابك لنموذج برو فور تفعيل الإدارة للدفعة</Text>
               <Text style={styles.payHint}>
@@ -316,22 +391,22 @@ export default function SubscriptionScreen() {
 const styles = StyleSheet.create({
   cycleRow: { flexDirection: 'row-reverse', gap: 8, marginBottom: 14 },
   cycleChip: { flex: 1, paddingVertical: 10, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, alignItems: 'center' },
-  cycleChipOn: { backgroundColor: colors.primary, borderColor: colors.primary, elevation: 4, shadowColor: colors.primary, shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } },
+  cycleChipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   cycleText: { fontSize: 13, fontWeight: '700', color: colors.textSecondary },
   cycleTextOn: { color: '#fff' },
   groupTitle: { marginTop: 10, marginBottom: 8, textAlign: 'right' },
-  popularCard: { borderWidth: 2, borderColor: colors.primary, elevation: 6, shadowColor: colors.primary, shadowOpacity: 0.2, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
+  popularCard: { borderWidth: 2, borderColor: colors.primary },
   planHead: { flexDirection: 'row-reverse', alignItems: 'center', gap: 12 },
   priceBox: { alignItems: 'center', minWidth: 70 },
   priceNum: { fontSize: 22, fontWeight: '900', color: colors.primary },
   priceUnit: { fontSize: 10, color: colors.textMuted },
-  subscribeBtn: { marginTop: 10, backgroundColor: colors.primary, borderRadius: radius.lg, paddingVertical: 11, alignItems: 'center', elevation: 4, shadowColor: colors.primary, shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } },
+  subscribeBtn: { marginTop: 10, backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: 11, alignItems: 'center' },
   subscribeText: { color: '#fff', fontWeight: '800', fontSize: 14 },
   upgradeCard: { borderWidth: 2, borderColor: colors.warning, marginBottom: 14, backgroundColor: colors.warningSoft },
   upgradeTitle: { fontSize: 16, fontWeight: '800', color: colors.text, textAlign: 'right', marginBottom: 6 },
   upgradeLine: { fontSize: 13, color: colors.textSecondary, textAlign: 'right', marginTop: 4, lineHeight: 19 },
   upgradePending: { marginTop: 10, fontSize: 13, fontWeight: '700', color: colors.warning, textAlign: 'right' },
-  upgradeBtn: { marginTop: 10, backgroundColor: colors.warning, borderRadius: radius.lg, paddingVertical: 11, alignItems: 'center', elevation: 4, shadowColor: colors.warning, shadowOpacity: 0.35, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } },
+  upgradeBtn: { marginTop: 10, backgroundColor: colors.warning, borderRadius: radius.md, paddingVertical: 11, alignItems: 'center' },
   upgradeBtnText: { color: '#fff', fontWeight: '800', fontSize: 14 },
   waRow: { marginTop: 16, marginBottom: 24, alignItems: 'center' },
   waText: { color: colors.success, fontWeight: '700', fontSize: 13 },

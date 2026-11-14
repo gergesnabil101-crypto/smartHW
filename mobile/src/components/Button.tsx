@@ -1,7 +1,6 @@
 import React from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, ViewStyle } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { colors, radius, shadows } from '../theme';
+import { colors, radius } from '../theme';
 
 type Variant = 'primary' | 'secondary' | 'danger' | 'ghost';
 
@@ -14,38 +13,27 @@ interface Props {
   style?: ViewStyle;
 }
 
-const GRADIENTS: Record<string, readonly [string, string]> = {
-  primary: [colors.primary, colors.primaryDark],
-  danger: ['#ef4444', colors.dangerDark],
-};
-
+/** Quiet, solid chrome button — one accent, no gradients or glows. */
 export function Button({ title, onPress, variant = 'primary', disabled, loading, style }: Props) {
   const isDisabled = disabled || loading;
-  const gradient = GRADIENTS[variant];
+  const spinner = variant === 'ghost' || variant === 'secondary' ? colors.primary : '#fff';
   return (
     <Pressable
       onPress={onPress}
       disabled={isDisabled}
       style={({ pressed }) => [
         styles.base,
-        variant === 'secondary' && styles.secondary,
+        variant === 'primary' && { backgroundColor: pressed ? colors.primaryDark : colors.primary },
+        variant === 'danger' && { backgroundColor: pressed ? colors.dangerDark : colors.danger },
+        variant === 'secondary' && [styles.secondary, pressed && { backgroundColor: '#e0e7ff' }],
         variant === 'ghost' && styles.ghost,
         isDisabled && styles.disabled,
-        pressed && !isDisabled && styles.pressed,
         style,
       ]}
       accessibilityRole="button"
     >
-      {gradient ? (
-        <LinearGradient
-          colors={gradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[StyleSheet.absoluteFill, styles.gradient, variant === 'primary' && shadows.elev, variant === 'danger' && shadows.elevDanger]}
-        />
-      ) : null}
       {loading ? (
-        <ActivityIndicator color={variant === 'ghost' || variant === 'secondary' ? colors.primary : '#fff'} />
+        <ActivityIndicator color={spinner} />
       ) : (
         <Text style={[styles.text, variant === 'ghost' && styles.ghostText, variant === 'secondary' && styles.secondaryText]}>
           {title}
@@ -57,20 +45,17 @@ export function Button({ title, onPress, variant = 'primary', disabled, loading,
 
 const styles = StyleSheet.create({
   base: {
-    borderRadius: radius.lg,
-    paddingVertical: 14,
+    borderRadius: radius.md,
+    paddingVertical: 13,
     paddingHorizontal: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 50,
-    overflow: 'hidden',
+    minHeight: 48,
   },
-  gradient: { borderRadius: radius.lg },
-  secondary: { backgroundColor: colors.primarySoft, borderWidth: 1.5, borderColor: '#c7d2fe' },
+  secondary: { backgroundColor: colors.primarySoft },
   ghost: { backgroundColor: 'transparent' },
-  disabled: { opacity: 0.5 },
-  pressed: { opacity: 0.9, transform: [{ scale: 0.98 }] },
-  text: { color: '#fff', fontSize: 16, fontWeight: '800', writingDirection: 'rtl', zIndex: 1 },
+  disabled: { opacity: 0.45 },
+  text: { color: '#fff', fontSize: 15, fontWeight: '800', writingDirection: 'rtl' },
   secondaryText: { color: colors.primary },
   ghostText: { color: colors.primary },
 });

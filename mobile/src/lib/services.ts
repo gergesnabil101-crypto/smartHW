@@ -130,6 +130,9 @@ export const adminUpdateUser = (userId: string, email: string | undefined, updat
   api.post<{ success: boolean }>('/api/admin/update-user', { userId, email, updates }, { idempotent: true });
 export const adminDeleteUser = (userId: string, email?: string, name?: string) =>
   api.post<{ success: boolean }>(`/api/users/${encodeURIComponent(userId)}/delete`, { email, name });
+/** Self-service account deletion (required by Play policy for apps with accounts). */
+export const deleteMyAccount = (userId: string) =>
+  api.post<{ success: boolean }>(`/api/users/${encodeURIComponent(userId)}/delete`, {});
 
 export interface PricingConfig {
   flash_output_multiplier?: number;
@@ -137,6 +140,10 @@ export interface PricingConfig {
   flash_price_per_million?: number;
   pro_price_per_million?: number;
   plan_prices?: Record<string, { monthly?: number; yearly?: number }>;
+  /** ISO currency code shown to users (EGP, SAR, USD…). Default EGP. */
+  currency?: string;
+  /** Optional display override, e.g. "ج.م" or "$". */
+  currency_label?: string;
 }
 export const getPricing = () =>
   api.get<{ pricing: PricingConfig }>('/api/config/pricing').then((r) => r?.pricing || {});
@@ -152,6 +159,11 @@ export const approveSubscriptionRequest = (requestId: string) =>
   api.post<{ success: boolean }>('/api/subscription-requests/approve', { requestId });
 export const deleteSubscriptionRequest = (requestId: string) =>
   api.delete<{ success: boolean }>(`/api/subscription-requests/${encodeURIComponent(requestId)}`);
+
+// ---------- Google Play Billing ----------
+/** Server-side verification of a Play purchase token → activates the subscription. */
+export const verifyPlayPurchase = (productId: string, purchaseToken: string) =>
+  api.post<{ success: boolean; subscription_end_date?: string }>('/api/iap/android/verify', { productId, purchaseToken }, { idempotent: true });
 
 // ---------- Misc ----------
 export const healthCheck = () => api.get<{ ok: boolean }>('/api/health', { auth: false });

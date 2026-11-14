@@ -118,6 +118,7 @@ export interface UserProfile {
   hasAccess?: boolean;
   tokens_used?: number;
   tokens_used_today?: number;
+  last_token_reset_date?: string;
   extra_tokens?: number;
   tokens_limit?: number;
   token_balance?: number;

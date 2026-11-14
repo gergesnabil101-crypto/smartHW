@@ -14,6 +14,7 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getAppCheck } from 'firebase-admin/app-check';
 import { recordTokenUsage, computeBillableTokens, type TokenOperation } from './server/tokenAccounting.ts';
 import { normalizeGradingResult, GRADING_RESPONSE_SCHEMA } from './server/grading.ts';
+import { GoogleAuth } from 'google-auth-library';
 
 // Load Firebase configuration
 let firebaseConfig: any = {};
@@ -1379,6 +1380,59 @@ async function startServer() {
   // Health check
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  });
+
+  // Public privacy policy page — required URL for the Google Play listing.
+  app.get('/privacy', (req, res) => {
+    res.type('html').send(`<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>سياسة الخصوصية — مصحح الواجبات الذكي</title>
+<style>body{font-family:system-ui,Tahoma,sans-serif;max-width:760px;margin:0 auto;padding:24px;line-height:1.9;color:#0f172a}h1{color:#4f46e5}h2{margin-top:28px}small{color:#64748b}</style></head><body>
+<h1>سياسة الخصوصية — مصحح الواجبات الذكي</h1>
+<small>آخر تحديث: نوفمبر 2026 • Privacy Policy (English summary below)</small>
+<h2>١. البيانات التي نجمعها</h2>
+<ul>
+<li><b>بيانات المعلم:</b> الاسم، البريد الإلكتروني، رقم الهاتف، المادة والصفوف الدراسية — لإنشاء الحساب وإدارة الاشتراك.</li>
+<li><b>بيانات الطلاب:</b> الاسم، رقم الهاتف/هاتف ولي الأمر، اسم السنتر، إجابات الاختبارات ودرجاتها — يُدخلها الطالب أو معلمه عند إجراء الاختبار.</li>
+<li><b>بيانات الاستخدام:</b> عدد عمليات الذكاء الاصطناعي واستهلاك التوكنز لكل حساب — لأغراض الفوترة وتحسين الخدمة.</li>
+<li><b>صور الإيصالات:</b> عند طلب اشتراك يدوي، يُرفع إثبات دفع تطابقه الإدارة ثم تتم إدارته داخل النظام.</li>
+</ul>
+<h2>٢. كيف نستخدم البيانات</h2>
+<ul>
+<li>إنشاء الاختبارات وتصحيح الإجابات بالذكاء الاصطناعي (تتم المعالجة عبر خوادمنا؛ لا تُرسل بيانات شخصية للطالب إلى نماذج التصحيح).</li>
+<li>إدارة الاشتراكات والمدفوعات وإشعارات المنصة.</li>
+<li>التواصل مع المعلم عبر البريد أو واتساب عند الطلب.</li>
+</ul>
+<h2>٣. مع من نشارك البيانات</h2>
+<ul>
+<li><b>Firebase (Google):</b> المصادقة وقاعدة البيانات Firestore والتخزين.</li>
+<li><b>Google Gemini API:</b> معالجة نصوص الأسئلة والإجابات للتصحيح — دون بيانات تعريفية شخصية.</li>
+<li>لا نبيع ولا نؤجر بياناتك لأي طرف ثالث، ولا نستخدمها للإعلانات.</li>
+</ul>
+<h2>٤. حقوقك</h2>
+<ul>
+<li>يمكنك تعديل بياناتك أو <b>حذف حسابك نهائياً من داخل التطبيق</b> (حسابي ← حذف حسابي)، ويحذف ذلك حسابك واختباراتك ونتائج طلابك.</li>
+<li>لطلب تصدير بياناتك أو حذف سجلات طالب معين، راسلنا على بريد الدعم.</li>
+</ul>
+<h2>٥. الاحتفاظ والأمان</h2>
+<ul>
+<li>تُخزَّن البيانات على خوادم Google/Firebase بتشفير أثناء النقل والتخزين، مع صلاحيات وصول مقيّدة (المالك/الإدارة فقط).</li>
+<li>نحتفظ بالبيانات ما دام الحساب نشطاً؛ وتُحذف نهائياً عند حذف الحساب.</li>
+</ul>
+<h2>٦. الأطفال</h2>
+<p>التطبيق موجّه للمعلمين والمراكز التعليمية (١٨+). يجيب الطلاب على الاختبارات عبر روابط يشاركها معلموهم دون إنشاء حسابات؛ ولا نجمع من القاصرين سوى ما يطلبه المعلم لتقييم الاختبار.</p>
+<h2>٧. التواصل</h2>
+<p>لأي استفسار حول الخصوصية: <a href="mailto:gergesnabil101@gmail.com">gergesnabil101@gmail.com</a></p>
+<hr/>
+<h2 dir="ltr">Privacy Policy — English summary</h2>
+<div dir="ltr">
+<p><b>What we collect:</b> teacher account details (name, email, phone, subjects), student quiz data entered by teachers/students (names, phones, answers, scores), AI usage counters, and manual payment receipts.</p>
+<p><b>How we use it:</b> quiz generation and AI grading (processed on our servers; no student PII is sent to the grading models), subscription management, and support.</p>
+<p><b>Sharing:</b> Firebase/Google for auth and storage; Gemini API for grading content. We never sell data or use it for ads.</p>
+<p><b>Your rights:</b> edit your profile or permanently delete your account and all associated data from inside the app (Account → Delete my account). Contact support for data export or specific record removal.</p>
+<p><b>Contact:</b> <a href="mailto:gergesnabil101@gmail.com">gergesnabil101@gmail.com</a></p>
+</div>
+</body></html>`);
   });
 
   // Safe Env Check
@@ -4612,6 +4666,13 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
         const v = Number(body[key]);
         if (v > 0 && v < 10000) next[key] = v;
       }
+      if (typeof body.currency === 'string') {
+        const cur = body.currency.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
+        if (cur) next.currency = cur;
+      }
+      if (typeof body.currency_label === 'string' && body.currency_label.trim()) {
+        next.currency_label = body.currency_label.trim().slice(0, 12);
+      }
       if (body.plan_prices && typeof body.plan_prices === 'object' && !Array.isArray(body.plan_prices)) {
         const pp: Record<string, { monthly?: number; yearly?: number }> = {};
         for (const [planId, v] of Object.entries(body.plan_prices as Record<string, any>)) {
@@ -4631,6 +4692,75 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
       pricingConfigCache = { ...pricingConfigCache, ...next };
       pricingConfigLoadedAt = Date.now();
       res.json({ success: true, pricing: pricingConfigCache });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ---- Google Play Billing: server-side purchase verification ----
+  // Play product IDs → token plans (must match products created in Play Console).
+  const PLAY_PRODUCTS: Record<string, { millions: number; pro: boolean }> = {
+    token_1M: { millions: 1, pro: false },
+    token_2M: { millions: 2, pro: false },
+    token_3M: { millions: 3, pro: false },
+    token_5M: { millions: 5, pro: false },
+    token_10M: { millions: 10, pro: false },
+    pro_token_1M: { millions: 1, pro: true },
+    pro_token_2M: { millions: 2, pro: true },
+    pro_token_3M: { millions: 3, pro: true },
+    pro_token_5M: { millions: 5, pro: true },
+    pro_token_10M: { millions: 10, pro: true },
+  };
+  const ANDROID_PACKAGE = process.env.ANDROID_PACKAGE_NAME || 'com.gergesnabil.mosahah';
+  const playAuth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/androidpublisher'] });
+
+  app.post('/api/iap/android/verify', authenticateFirebaseUser, async (req: any, res: any) => {
+    try {
+      const { productId, purchaseToken } = req.body || {};
+      const plan = PLAY_PRODUCTS[String(productId || '')];
+      if (!plan || !purchaseToken) {
+        return res.status(400).json({ error: 'productId غير معروف أو رمز شراء مفقود.' });
+      }
+      let tokenData: any;
+      try {
+        const client = await playAuth.getClient();
+        const { token: accessToken } = await client.getAccessToken();
+        const url = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${ANDROID_PACKAGE}/purchases/subscriptionsv2/tokens/${encodeURIComponent(String(purchaseToken))}`;
+        const gres = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+        if (!gres.ok) {
+          const bodyText = await gres.text().catch(() => '');
+          console.error('Play verify failed:', gres.status, bodyText);
+          return res.status(502).json({ error: 'تعذر التحقق من عملية الشراء لدى Google Play.' });
+        }
+        tokenData = await gres.json();
+      } catch (e: any) {
+        console.error('Play API error:', e?.message);
+        return res.status(503).json({ error: 'خدمة التحقق غير مهيأة بعد — اربط حساب الخدمة بواجهة Play Developer API.' });
+      }
+      const state = String(tokenData?.subscriptionState || '');
+      const expiry = tokenData?.lineItems?.[0]?.expiryTime || tokenData?.lineItems?.[0]?.offerDetails?.basePlanId;
+      if (state !== 'SUBSCRIPTION_STATE_ACTIVE' && state !== 'SUBSCRIPTION_STATE_IN_GRACE_PERIOD') {
+        return res.status(402).json({ error: 'الاشتراك غير نشط لدى Google Play.', state });
+      }
+      const endDate = new Date(tokenData?.lineItems?.[0]?.expiryTime || Date.now() + 30 * 864e5);
+      const todayStr = new Date().toISOString().split('T')[0];
+      await adminDb.collection('users').doc(req.user.uid).set({
+        subscription_status: 'active',
+        subscription_type: `play_${productId}`,
+        custom_tokens_millions: plan.millions,
+        preferred_ai_model: plan.pro ? 'gemini_pro' : 'gemini_flash',
+        subscription_end_date: endDate.toISOString(),
+        billing_cycle: 'monthly',
+        billing_source: 'google_play',
+        play_product_id: String(productId),
+        tokens_used: 0,
+        tokens_used_today: 0,
+        tokens_used_total: 0,
+        extra_tokens: 0,
+        last_token_reset_date: todayStr,
+        hasAccess: true,
+      }, { merge: true });
+      res.json({ success: true, subscription_end_date: endDate.toISOString(), state });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -4891,7 +5021,17 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
     try {
       const userDoc = await adminDb.collection('users').doc(req.user.uid).get();
       if (userDoc.exists) {
-        res.json({ id: userDoc.id, ...userDoc.data() });
+        const data: any = { id: userDoc.id, ...userDoc.data() };
+        const todayStr = new Date().toISOString().split('T')[0];
+        if (data.last_token_reset_date !== todayStr) data.tokens_used_today = 0;
+        const email = String(req.user?.email || data.email || '').toLowerCase().trim();
+        if (req.user?.admin === true || data.role === 'admin' || email === 'gergesnabil101@gmail.com') {
+          data.role = 'admin';
+          if (!data.subscription_status || data.subscription_status === 'trial' || data.subscription_status === 'expired') {
+            data.subscription_status = 'active';
+          }
+        }
+        res.json(data);
       } else {
         res.status(404).json({ error: 'المستخدم غير موجود' });
       }

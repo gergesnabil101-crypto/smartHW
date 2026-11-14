@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as MediaLibrary from 'expo-media-library';
 import * as Sharing from 'expo-sharing';
 import QRCode from 'react-native-qrcode-svg';
 import { Button } from '../../components/Button';
@@ -36,7 +37,16 @@ export function ShareSheet({ quizTitle, shareUrl }: Props) {
       try {
         const path = `${FileSystem.cacheDirectory}quiz-qr-${Date.now()}.png`;
         await FileSystem.writeAsStringAsync(path, data, { encoding: 'base64' });
-        await Sharing.shareAsync(path, { mimeType: 'image/png', dialogTitle: 'حفظ رمز QR للاختبار' });
+        // Save straight to the device gallery — fall back to the share sheet if denied.
+        const perm = await MediaLibrary.requestPermissionsAsync();
+        if (perm.granted) {
+          await MediaLibrary.saveToLibraryAsync(path);
+          Alert.alert('تم التحميل ✅', 'تم حفظ رمز QR في معرض الصور على جهازك.');
+        } else if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(path, { mimeType: 'image/png', dialogTitle: 'حفظ رمز QR للاختبار' });
+        } else {
+          Alert.alert('تعذر الحفظ', 'امنح التطبيق إذن الوصول للصور من إعدادات الجهاز.');
+        }
       } catch (e: any) {
         Alert.alert('فشل حفظ QR', e?.message || 'حاول مرة أخرى.');
       } finally {

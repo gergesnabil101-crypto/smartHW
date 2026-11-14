@@ -11,6 +11,7 @@ import { Loading, EmptyState, ErrorState } from '../../components/Feedback';
 import { listMyQuizzes, listFolders, createFolder, deleteQuiz, deleteFolder, saveQuiz } from '../../lib/services';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../store/AuthContext';
+import { useLang } from '../../i18n';
 import { ShareSheet } from '../../features/quizzes/ShareSheet';
 import { API_BASE_URL } from '../../config';
 import type { Quiz, Folder } from '../../types';
@@ -22,6 +23,7 @@ interface TeacherNotif { id: string; title: string; message: string; targetType?
 export default function DashboardScreen() {
   const router = useRouter();
   const { user, profile, refreshProfile } = useAuth();
+  const { t } = useLang();
   const [quizzes, setQuizzes] = useState<Quiz[] | null>(null);
   const [teacherNotifs, setTeacherNotifs] = useState<TeacherNotif[]>([]);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
@@ -101,9 +103,9 @@ export default function DashboardScreen() {
     return (
       <View style={styles.tokenBar}>
         <View style={styles.tokenBarHead}>
-          <Text style={styles.tokenBarTitle}>⚡ رصيد التوكنز</Text>
+          <Text style={styles.tokenBarTitle}>{t('tokenBalance')}</Text>
           <Text style={styles.tokenBarText}>
-            المتبقي {left.toLocaleString('en')} من {quota.toLocaleString('en')}
+            {t('remaining')} {left.toLocaleString('en')} {t('of')} {quota.toLocaleString('en')}
           </Text>
         </View>
         <View style={styles.tokenTrack}>
@@ -111,7 +113,7 @@ export default function DashboardScreen() {
         </View>
       </View>
     );
-  }, [profile]);
+  }, [profile, t]);
 
   const visibleQuizzes = useMemo(() => {
     if (!quizzes) return [];
@@ -119,10 +121,10 @@ export default function DashboardScreen() {
   }, [quizzes, activeFolder]);
 
   const confirmDeleteQuiz = (quiz: Quiz) => {
-    Alert.alert('حذف الاختبار', `هل أنت متأكد من حذف "${quiz.title}"؟ لا يمكن التراجع.`, [
-      { text: 'إلغاء', style: 'cancel' },
+    Alert.alert(t('delete'), `${quiz.title} — ${t('deleteQuizQ')}`, [
+      { text: t('cancel'), style: 'cancel' },
       {
-        text: 'حذف',
+        text: t('delete'),
         style: 'destructive',
         onPress: async () => {
           try {
@@ -173,7 +175,7 @@ export default function DashboardScreen() {
   };
 
   if (quizzes === null && !error) {
-    return <Screen><Loading text="جاري تحميل اختباراتك..." /></Screen>;
+    return <Screen><Loading text={t('loadingQuizzes')} /></Screen>;
   }
 
   return (
@@ -181,15 +183,15 @@ export default function DashboardScreen() {
       {/* Folder filter row */}
       <View style={styles.folderRowWrap}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.folderRow}>
-          {[{ id: null, name: 'الكل' } as any, ...folders].map((item) => (
+          {[{ id: null, name: t('all') } as any, ...folders].map((item) => (
             <Pressable
               key={String(item.id ?? 'all')}
               onPress={() => setActiveFolder(item.id)}
               onLongPress={() => {
                 if (!item.id) return;
-                Alert.alert('حذف المجلد', `حذف مجلد "${item.name}"؟ (الاختبارات بداخله لن تُحذف)`, [
-                  { text: 'إلغاء', style: 'cancel' },
-                  { text: 'حذف', style: 'destructive', onPress: () => deleteFolder(item.id).then(load).catch(() => null) },
+                Alert.alert(t('delete'), `${item.name} — ${t('deleteFolderQ')}`, [
+                  { text: t('cancel'), style: 'cancel' },
+                  { text: t('delete'), style: 'destructive', onPress: () => deleteFolder(item.id).then(load).catch(() => null) },
                 ]);
               }}
               style={[styles.folderChip, activeFolder === item.id && styles.folderChipActive]}
@@ -223,7 +225,7 @@ export default function DashboardScreen() {
                     </Pressable>
                   </View>
                   <Text style={styles.notifMsg}>{n.message}</Text>
-                  <Text style={styles.notifMeta}>إشعار من إدارة المنصة{n.created_at ? ` • ${new Date(n.created_at).toLocaleDateString('ar-EG')}` : ''}</Text>
+                  <Text style={styles.notifMeta}>{t('notifFromAdmin')}{n.created_at ? ` • ${new Date(n.created_at).toLocaleDateString('ar-EG')}` : ''}</Text>
                 </View>
               ))}
             </View>
@@ -231,8 +233,8 @@ export default function DashboardScreen() {
         }
         ListEmptyComponent={
           <EmptyState
-            title="لا توجد اختبارات بعد"
-            hint="اضغط «اختبار جديد» لإنشاء أول اختبار لك"
+            title={t('noQuizzesYet')}
+            hint={t('createFirstQuiz')}
           />
         }
         renderItem={({ item }) => {
@@ -244,33 +246,33 @@ export default function DashboardScreen() {
                 <View style={{ flex: 1 }}>
                   <View style={styles.titleRow}>
                     <Text style={typography.h3} numberOfLines={1}>{item.title}</Text>
-                    {expired ? <Text style={styles.badgeExpired}>منتهي</Text> : null}
-                    {inactive ? <Text style={styles.badgeInactive}>معطّل</Text> : null}
+                    {expired ? <Text style={styles.badgeExpired}>{t('badgeExpired')}</Text> : null}
+                    {inactive ? <Text style={styles.badgeInactive}>{t('badgeDisabled')}</Text> : null}
                   </View>
                   <Text style={typography.caption}>
-                    {item.questions?.length || 0} سؤال{item.subject ? ` • ${item.subject}` : ''}
+                    {item.questions?.length || 0} {t('questionsUnit')}{item.subject ? ` • ${item.subject}` : ''}
                   </Text>
                 </View>
               </View>
               <View style={styles.actionsRow}>
                 <Pressable onPress={() => setShareQuiz(item)} style={styles.actionBtn}>
-                  <Text style={styles.actionText}>🔗 مشاركة</Text>
+                  <Text style={styles.actionText}>{t('share')}</Text>
                 </Pressable>
                 <Pressable onPress={() => router.push({ pathname: '/results', params: { quizId: item.id } })} style={styles.actionBtn}>
-                  <Text style={styles.actionText}>📊 النتائج</Text>
+                  <Text style={styles.actionText}>{t('results')}</Text>
                 </Pressable>
                 <Pressable onPress={() => setMoveQuiz(item)} style={styles.actionBtn}>
-                  <Text style={styles.actionText}>📁 نقل</Text>
+                  <Text style={styles.actionText}>{t('move')}</Text>
                 </Pressable>
                 <Pressable
                   onPress={() => patchQuiz(item, { is_active: !inactive })}
                   disabled={busyQuizId === item.id}
                   style={styles.actionBtn}
                 >
-                  <Text style={styles.actionText}>{inactive ? '▶️ تفعيل' : '⏸ تعطيل'}</Text>
+                  <Text style={styles.actionText}>{inactive ? t('enable') : t('disable')}</Text>
                 </Pressable>
                 <Pressable onPress={() => confirmDeleteQuiz(item)} style={styles.actionBtn} hitSlop={6}>
-                  <Text style={styles.actionDelete}>🗑 حذف</Text>
+                  <Text style={styles.actionDelete}>{t('deleteAction')}</Text>
                 </Pressable>
               </View>
             </Card>
@@ -279,8 +281,8 @@ export default function DashboardScreen() {
       />
 
       <View style={styles.actions}>
-        <Button title="+ اختبار جديد" onPress={() => router.push({ pathname: '/quiz/[id]', params: { id: 'new' } })} style={{ flex: 1 }} />
-        <Button title="+ مجلد" variant="secondary" onPress={() => setFolderModal(true)} />
+        <Button title={t('newQuiz')} onPress={() => router.push({ pathname: '/quiz/[id]', params: { id: 'new' } })} style={{ flex: 1 }} />
+        <Button title={t('newFolder')} variant="secondary" onPress={() => setFolderModal(true)} />
       </View>
       <Text style={styles.buildTag}>v1.2</Text>
 
@@ -288,11 +290,11 @@ export default function DashboardScreen() {
       <Modal visible={!!shareQuiz} transparent animationType="fade" onRequestClose={() => setShareQuiz(null)}>
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
-            <Text style={typography.h3}>مشاركة «{shareQuiz?.title}»</Text>
+            <Text style={typography.h3}>{t('shareTitle')} — {shareQuiz?.title}</Text>
             {shareQuiz ? (
               <ShareSheet quizTitle={shareQuiz.title} shareUrl={`${API_BASE_URL}/?id=${shareQuiz.id}`} />
             ) : null}
-            <Button title="إغلاق" variant="ghost" onPress={() => setShareQuiz(null)} />
+            <Button title={t('close')} variant="ghost" onPress={() => setShareQuiz(null)} />
           </View>
         </View>
       </Modal>
@@ -301,12 +303,12 @@ export default function DashboardScreen() {
       <Modal visible={!!moveQuiz} transparent animationType="fade" onRequestClose={() => setMoveQuiz(null)}>
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
-            <Text style={typography.h3}>نقل «{moveQuiz?.title}» إلى مجلد</Text>
+            <Text style={typography.h3}>{t('moveToFolder')} — {moveQuiz?.title}</Text>
             <Pressable
               style={styles.folderOption}
               onPress={() => { patchQuiz(moveQuiz!, { folder_id: undefined }); setMoveQuiz(null); }}
             >
-              <Text style={typography.body}>بدون مجلد</Text>
+              <Text style={typography.body}>{t('noFolder')}</Text>
             </Pressable>
             {folders.map((f) => (
               <Pressable
@@ -317,7 +319,7 @@ export default function DashboardScreen() {
                 <Text style={typography.body}>📁 {f.name}</Text>
               </Pressable>
             ))}
-            <Button title="إلغاء" variant="ghost" onPress={() => setMoveQuiz(null)} />
+            <Button title={t('cancel')} variant="ghost" onPress={() => setMoveQuiz(null)} />
           </View>
         </View>
       </Modal>
@@ -325,16 +327,16 @@ export default function DashboardScreen() {
       <Modal visible={folderModal} transparent animationType="fade">
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
-            <Text style={typography.h3}>مجلد جديد</Text>
+            <Text style={typography.h3}>{t('newFolderTitle')}</Text>
             <Input
-              label="اسم المجلد"
+              label={t('folderName')}
               value={folderName}
               onChangeText={setFolderName}
-              placeholder="مثال: اختبارات شهر أكتوبر"
+              placeholder={t('folderNameHint')}
             />
             <View style={styles.modalActions}>
-              <Button title="إنشاء" onPress={submitFolder} loading={savingFolder} style={{ flex: 1 }} />
-              <Button title="إلغاء" variant="ghost" onPress={() => setFolderModal(false)} />
+              <Button title={t('create')} onPress={submitFolder} loading={savingFolder} style={{ flex: 1 }} />
+              <Button title={t('cancel')} variant="ghost" onPress={() => setFolderModal(false)} />
             </View>
           </View>
         </View>

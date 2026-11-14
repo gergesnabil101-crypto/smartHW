@@ -21,7 +21,11 @@ interface PlatformStudent {
   teacher_name?: string;
   exams_count?: number;
   last_exam_date?: string;
+  /** YYYY-MM-DD dates on which this student took at least one test */
+  exam_days?: Set<string>;
 }
+
+interface DayStat { date: string; exams: number; students: number; }
 
 type FilterKey = 'grade_level' | 'subject' | 'teacher_name';
 
@@ -38,6 +42,8 @@ export default function AdminStudentsScreen() {
   const [students, setStudents] = useState<PlatformStudent[] | null>(null);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [day, setDay] = useState<string | 'all'>('all');
+  const [dayStats, setDayStats] = useState<DayStat[]>([]);
   const [center, setCenter] = useState<'all' | 'none' | string>('all');
   const [filters, setFilters] = useState<Record<FilterKey, string>>({ grade_level: '', subject: '', teacher_name: '' });
   const [pickerFor, setPickerFor] = useState<FilterKey | 'center' | null>(null);
@@ -71,6 +77,7 @@ export default function AdminStudentsScreen() {
       // Always merge results — students exist there even if never synced to `students`
       // (legacy app did this only when empty, which hid unsynced teachers' students)
       const registryKeys = new Set(map.keys());
+      const byDay = new Map<string, { exams: number; keys: Set<string> }>();
       const rs = await getDocs(collection(db, 'results'));
       rs.forEach((d) => {
         const r = d.data() as any;
@@ -78,9 +85,18 @@ export default function AdminStudentsScreen() {
         const phone = String(r.student_phone || '').trim();
         if (!name && !phone) return;
         const key = `${name}|${phone}`;
+        const createdAt = r.created_at?.toDate ? r.created_at.toDate() : new Date(r.created_at || '');
+        const dayStr = isNaN(createdAt?.getTime?.()) ? '' : createdAt.toISOString().split('T')[0];
+        if (dayStr) {
+          const stat = byDay.get(dayStr) || { exams: 0, keys: new Set<string>() };
+          stat.exams += 1;
+          stat.keys.add(key);
+          byDay.set(dayStr, stat);
+        }
         const prev = map.get(key);
         if (prev) {
           if (!registryKeys.has(key)) prev.exams_count = (prev.exams_count || 0) + 1;
+          if (dayStr) (prev.exam_days ||= new Set()).add(dayStr);
           // Fill gaps without overwriting the authoritative registry fields
           if (!prev.teacher_name && r.teacher_name) prev.teacher_name = r.teacher_name;
           if (!prev.grade_level && r.grade_level) prev.grade_level = r.grade_level;
@@ -101,8 +117,15 @@ export default function AdminStudentsScreen() {
           teacher_name: r.teacher_name,
           exams_count: 1,
           last_exam_date: r.created_at,
+          exam_days: dayStr ? new Set([dayStr]) : undefined,
         });
       });
+      setDayStats(
+        Array.from(byDay.entries())
+          .map(([date, s]) => ({ date, exams: s.exams, students: s.keys.size }))
+          .sort((a, b) => b.date.localeCompare(a.date))
+          .slice(0, 14)
+      );
       setStudents(Array.from(map.values()).sort((a, b) => a.student_name.localeCompare(b.student_name, 'ar')));
     } catch (e: any) {
       setError(e?.message || 'تعذر تحميل سجلات الطلاب.');
@@ -120,12 +143,13 @@ export default function AdminStudentsScreen() {
     const t = search.trim().toLowerCase();
     return (students || []).filter((s) => {
       if (t && !s.student_name.toLowerCase().includes(t) && !s.student_phone.includes(t) && !(s.parent_phone || '').includes(t) && !(s.center_name || '').toLowerCase().includes(t)) return false;
+      if (day !== 'all' && !s.exam_days?.has(day)) return false;
       if (center === 'none' && s.center_name) return false;
       if (center !== 'all' && center !== 'none' && s.center_name !== center) return false;
       for (const f of FILTERS) if (filters[f.key] && String(s[f.key] || '') !== filters[f.key]) return false;
       return true;
     });
-  }, [students, search, center, filters]);
+  }, [students, search, center, filters, day]);
 
   const pickerOptions = pickerFor === 'center' ? unique('center_name') : pickerFor ? unique(pickerFor) : [];
 
@@ -140,6 +164,36 @@ export default function AdminStudentsScreen() {
       <View style={styles.searchWrap}>
         <Input placeholder="🔍 ابحث بالاسم أو الهاتف أو السنتر..." value={search} onChangeText={setSearch} />
         {error ? <ErrorState message={error} onRetry={load} /> : null}
+        {dayStats.length ? (
+          <View>
+            <View style={styles.todayBox}>
+              <Text style={styles.todayTitle}>📅 نشاط اليوم</Text>
+              <Text style={styles.todayNum}>
+                {dayStats[0].date === new Date().toISOString().split('T')[0] ? dayStats[0].students : 0} طالب
+                {' • '}
+                {dayStats[0].date === new Date().toISOString().split('T')[0] ? dayStats[0].exams : 0} اختبار
+              </Text>
+            </View>
+            <FlatList
+              horizontal
+              inverted
+              data={dayStats}
+              keyExtractor={(s) => s.date}
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.daysRow}
+              renderItem={({ item }) => {
+                const on = day === item.date;
+                const isToday = item.date === new Date().toISOString().split('T')[0];
+                return (
+                  <Pressable style={[styles.dayChip, on && styles.dayChipOn]} onPress={() => setDay(on ? 'all' : item.date)}>
+                    <Text style={[styles.dayDate, on && styles.dayTextOn]}>{isToday ? 'اليوم' : item.date.slice(5)}</Text>
+                    <Text style={[styles.dayCount, on && styles.dayTextOn]}>{item.students} طالب • {item.exams} اختبار</Text>
+                  </Pressable>
+                );
+              }}
+            />
+          </View>
+        ) : null}
         <Pressable style={styles.selectBox} onPress={() => setPickerFor('center')}>
           <Text style={styles.selectLabel}>السنتر:</Text>
           <Text style={styles.selectValue} numberOfLines={1}>{center === 'all' ? 'الكل' : center === 'none' ? 'بدون سنتر' : center}</Text>
@@ -154,7 +208,10 @@ export default function AdminStudentsScreen() {
             </Pressable>
           ))}
         </View>
-        <Text style={[typography.caption, { textAlign: 'right' }]}>{filtered.length} طالب من أصل {students?.length || 0} سجل</Text>
+        <Text style={[typography.caption, { textAlign: 'right' }]}>
+          {filtered.length} طالب{day !== 'all' ? ` نشط يوم ${day}` : ` من أصل ${students?.length || 0} سجل`}
+          {day !== 'all' ? ' — اضغط اليوم مرة أخرى لإلغاء الفلتر' : ''}
+        </Text>
       </View>
       <FlatList
         data={filtered}
@@ -210,6 +267,15 @@ const styles = StyleSheet.create({
   selectValue: { flex: 1, fontSize: 13, fontWeight: '600', color: colors.text, textAlign: 'right' },
   selectArrow: { fontSize: 13, color: colors.textMuted },
   filterRow: { flexDirection: 'row-reverse', gap: 6, marginBottom: 6 },
+  todayBox: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.primarySoft, borderRadius: radius.md, paddingHorizontal: 12, paddingVertical: 8, marginTop: 8 },
+  todayTitle: { fontSize: 13, fontWeight: '800', color: colors.primary },
+  todayNum: { fontSize: 13, fontWeight: '900', color: colors.text },
+  daysRow: { gap: 8, paddingVertical: 8 },
+  dayChip: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: colors.surface, alignItems: 'center', minWidth: 96 },
+  dayChipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  dayDate: { fontSize: 12, fontWeight: '800', color: colors.text },
+  dayCount: { fontSize: 10, color: colors.textMuted, marginTop: 2 },
+  dayTextOn: { color: '#fff' },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 24 },
   modalCard: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: 16, maxHeight: '80%' },
   modalTitle: { fontSize: 16, fontWeight: '800', color: colors.text, textAlign: 'right', marginBottom: 10 },

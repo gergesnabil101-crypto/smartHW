@@ -24,10 +24,7 @@
         "INTERNET"
       ],
       "blockedPermissions": [
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.RECORD_AUDIO",
-        "android.permission.CAMERA",
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION"
       ],
@@ -48,7 +45,8 @@
           "photosPermission": "السماح بإرفاق صور في الإجابات المقالية",
           "cameraPermission": "التقاط صورة لإرفاقها في الإجابة"
         }
-      ]
+      ],
+      "expo-iap"
     ],
     "extra": {
       "apiBaseUrl": "https://mosahah-api-609470896445.europe-west1.run.app",

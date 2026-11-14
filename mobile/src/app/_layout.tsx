@@ -3,6 +3,7 @@ import { I18nManager } from 'react-native';
 import { Stack } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from '../store/AuthContext';
+import { LanguageProvider } from '../i18n';
 import { colors } from '../theme';
 
 // Force RTL layout for the Arabic UI. Requires one app restart to apply;
@@ -14,6 +15,7 @@ if (!I18nManager.isRTL) {
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
+      <LanguageProvider>
       <AuthProvider>
         <Stack
           screenOptions={{
@@ -42,6 +44,7 @@ export default function RootLayout() {
           <Stack.Screen name="take/[id]" options={{ title: 'الاختبار', headerShown: false }} />
         </Stack>
       </AuthProvider>
+      </LanguageProvider>
     </SafeAreaProvider>
   );
 }

@@ -2,12 +2,14 @@ import React from 'react';
 import { Tabs, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../store/AuthContext';
+import { useLang } from '../../i18n';
 import { Loading } from '../../components/Feedback';
 import { Screen } from '../../components/Screen';
 import { colors } from '../../theme';
 
 export default function TeacherLayout() {
   const { initialized, user } = useAuth();
+  const { t } = useLang();
 
   if (!initialized) {
     return (
@@ -33,21 +35,21 @@ export default function TeacherLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'اختباراتي',
+          title: t('tabQuizzes'),
           tabBarIcon: ({ color, size }: any) => <Ionicons name="library" color={color} size={size + 2} />,
         }}
       />
       <Tabs.Screen
         name="students"
         options={{
-          title: 'الطلاب',
+          title: t('tabStudents'),
           tabBarIcon: ({ color, size }: any) => <Ionicons name="people" color={color} size={size + 2} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'حسابي',
+          title: t('tabProfile'),
           tabBarIcon: ({ color, size }: any) => <Ionicons name="person" color={color} size={size + 2} />,
         }}
       />

@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Link, useRouter } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Screen } from '../../components/Screen';
 import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { useAuth } from '../../store/AuthContext';
+import { useLang } from '../../i18n';
 import { colors, radius, shadows, typography } from '../../theme';
 
 function friendlyAuthError(code?: string): string {
@@ -28,6 +28,7 @@ function friendlyAuthError(code?: string): string {
 
 export default function LoginScreen() {
   const { signIn, loading } = useAuth();
+  const { t } = useLang();
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -40,7 +41,7 @@ export default function LoginScreen() {
     // Accept a full URL (…/?id=XYZ) or a bare quiz id
     const match = raw.match(/[?&]id=([A-Za-z0-9_-]+)/) || raw.match(/^([A-Za-z0-9_-]{3,})$/);
     if (!match) {
-      setError('الرابط أو الكود غير صالح.');
+      setError(t('invalidLink'));
       return;
     }
     router.push(`/take/${match[1]}`);
@@ -49,7 +50,7 @@ export default function LoginScreen() {
   const submit = async () => {
     setError('');
     if (!email.trim() || !password) {
-      setError('أدخل البريد الإلكتروني وكلمة المرور.');
+      setError(t('fillCredentials'));
       return;
     }
     try {
@@ -63,16 +64,16 @@ export default function LoginScreen() {
   return (
     <Screen>
       <View style={styles.header}>
-        <LinearGradient colors={[colors.primary, colors.primaryDark]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.logoBadge}>
+        <View style={styles.logoBadge}>
           <Text style={styles.logoEmoji}>📝</Text>
-        </LinearGradient>
-        <Text style={typography.h1}>مصحح الواجبات الذكي</Text>
-        <Text style={[typography.bodySecondary, { textAlign: 'center' }]}>سجل الدخول لمتابعة اختباراتك ونتائج طلابك</Text>
+        </View>
+        <Text style={typography.h1}>{t('appName')}</Text>
+        <Text style={[typography.bodySecondary, { textAlign: 'center' }]}>{t('loginSubtitle')}</Text>
       </View>
 
       <Card>
         <Input
-          label="البريد الإلكتروني"
+          label={t('email')}
           value={email}
           onChangeText={setEmail}
           keyboardType="email-address"
@@ -81,7 +82,7 @@ export default function LoginScreen() {
           placeholder="teacher@example.com"
         />
         <Input
-          label="كلمة المرور"
+          label={t('password')}
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -91,23 +92,23 @@ export default function LoginScreen() {
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        <Button title="تسجيل الدخول" onPress={submit} loading={loading} />
+        <Button title={t('signIn')} onPress={submit} loading={loading} />
       </Card>
 
       <View style={styles.links}>
-        <Link href="/(auth)/forgot-password" style={styles.link}>نسيت كلمة المرور؟</Link>
-        <Link href="/(auth)/register" style={styles.link}>إنشاء حساب معلم جديد</Link>
+        <Link href="/(auth)/forgot-password" style={styles.link}>{t('forgotPassword')}</Link>
+        <Link href="/(auth)/register" style={styles.link}>{t('createAccount')}</Link>
       </View>
 
       <Card style={{ marginTop: 24 }}>
-        <Text style={typography.label}>🎓 طالب؟ الصق رابط أو كود الاختبار</Text>
+        <Text style={typography.label}>{t('studentJoinTitle')}</Text>
         <Input
           value={joinCode}
           onChangeText={setJoinCode}
           placeholder="مثال: https://app.com/?id=abc أو abc"
           autoCapitalize="none"
         />
-        <Button title="دخول الاختبار" variant="secondary" onPress={joinQuiz} />
+        <Button title={t('joinQuiz')} variant="secondary" onPress={joinQuiz} />
       </Card>
     </Screen>
   );
@@ -115,7 +116,7 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   header: { alignItems: 'center', gap: 10, marginVertical: 32 },
-  logoBadge: { width: 84, height: 84, borderRadius: 26, alignItems: 'center', justifyContent: 'center', marginBottom: 6, ...shadows.elev },
+  logoBadge: { width: 84, height: 84, borderRadius: 26, alignItems: 'center', justifyContent: 'center', marginBottom: 6, backgroundColor: colors.primary, ...shadows.elev },
   logoEmoji: { fontSize: 40 },
   error: { color: colors.danger, textAlign: 'right', writingDirection: 'rtl', marginBottom: 10 },
   links: { alignItems: 'center', gap: 14, marginTop: 20 },

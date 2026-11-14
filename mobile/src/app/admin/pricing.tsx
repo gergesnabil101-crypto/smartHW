@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { Redirect } from 'expo-router';
+import { Pressable } from 'react-native';
 import { Screen } from '../../components/Screen';
 import { Card } from '../../components/Card';
 import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
 import { Loading, ErrorState } from '../../components/Feedback';
 import { getPricing, adminUpdatePricing, PricingConfig } from '../../lib/services';
-import { PLANS } from '../../lib/plans';
+import { PLANS, CURRENCIES } from '../../lib/plans';
 import { useAuth, isAdminUser } from '../../store/AuthContext';
 import { colors, typography } from '../../theme';
 
@@ -23,6 +24,8 @@ export default function AdminPricingScreen() {
   const [flashPrice, setFlashPrice] = useState('200');
   const [proPrice, setProPrice] = useState('250');
   const [planPrices, setPlanPrices] = useState<Record<string, { monthly: string; yearly: string }>>({});
+  const [currency, setCurrency] = useState('EGP');
+  const [currencyLabel, setCurrencyLabel] = useState('ج.م');
 
   const load = async () => {
     setLoading(true);
@@ -33,6 +36,8 @@ export default function AdminPricingScreen() {
       if (cfg.pro_output_multiplier != null) setProMult(String(cfg.pro_output_multiplier));
       if (cfg.flash_price_per_million != null) setFlashPrice(String(cfg.flash_price_per_million));
       if (cfg.pro_price_per_million != null) setProPrice(String(cfg.pro_price_per_million));
+      if (cfg.currency) setCurrency(String(cfg.currency).toUpperCase());
+      if (cfg.currency_label) setCurrencyLabel(String(cfg.currency_label));
       const pp: Record<string, { monthly: string; yearly: string }> = {};
       for (const p of PLANS) {
         const o = cfg.plan_prices?.[p.id];
@@ -71,6 +76,8 @@ export default function AdminPricingScreen() {
         flash_price_per_million: fp,
         pro_price_per_million: pp,
         plan_prices: prices,
+        currency,
+        currency_label: currencyLabel.trim() || CURRENCIES[currency] || currency,
       });
       Alert.alert('تم الحفظ', 'تم تحديث إعدادات التسعير وهامش الربح.');
     } catch (e: any) {
@@ -105,7 +112,25 @@ export default function AdminPricingScreen() {
             <Input label="مضاعف برو" value={proMult} onChangeText={setProMult} keyboardType="decimal-pad" />
           </Card>
           <Card>
-            <Text style={typography.h3}>💵 سعر المليون توكن (جنيه)</Text>
+            <Text style={typography.h3}>🌍 عملة التسعير</Text>
+            <Text style={[typography.caption, { textAlign: 'right', marginBottom: 8 }]}>
+              العملة المعروضة للمشتركين في جميع الأسعار — اختر كود العملة ويمكنك تخصيص الرمز الظاهر.
+            </Text>
+            <View style={styles.curRow}>
+              {Object.keys(CURRENCIES).map((c) => (
+                <Pressable
+                  key={c}
+                  style={[styles.curChip, currency === c && styles.curChipOn]}
+                  onPress={() => { setCurrency(c); setCurrencyLabel(CURRENCIES[c]); }}
+                >
+                  <Text style={[styles.curChipText, currency === c && styles.curChipTextOn]}>{c} {CURRENCIES[c]}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Input label="الرمز المعروض (مثال: ج.م / $ / ر.س)" value={currencyLabel} onChangeText={setCurrencyLabel} />
+          </Card>
+          <Card>
+            <Text style={typography.h3}>💵 سعر المليون توكن ({currencyLabel || 'ج.م'})</Text>
             <Input label="سعر مليون توكن — فلاش" value={flashPrice} onChangeText={setFlashPrice} keyboardType="decimal-pad" />
             <Input label="سعر مليون توكن — برو" value={proPrice} onChangeText={setProPrice} keyboardType="decimal-pad" />
           </Card>
@@ -146,4 +171,9 @@ const styles = StyleSheet.create({
   planName: { ...typography.label, marginBottom: 4 },
   planInputs: { flexDirection: 'row-reverse', gap: 10 },
   planInput: { flex: 1 },
+  curRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 6, marginBottom: 10 },
+  curChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  curChipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  curChipText: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },
+  curChipTextOn: { color: '#fff' },
 });

@@ -39,3 +39,23 @@ export const PLAN_GROUPS: { key: PlanOption['group']; title: string }[] = [
   { key: 'tokens', title: 'باقات التوكنز — فلاش ⚡ (200 ج / مليون)' },
   { key: 'pro_tokens', title: 'باقات التوكنز — برو 👑 (250 ج / مليون)' },
 ];
+
+/** Display labels for supported billing currencies (ISO code → Arabic label). */
+export const CURRENCIES: Record<string, string> = {
+  EGP: 'ج.م',
+  SAR: 'ر.س',
+  AED: 'د.إ',
+  KWD: 'د.ك',
+  QAR: 'ر.ق',
+  BHD: 'د.ب',
+  OMR: 'ر.ع',
+  JOD: 'د.أ',
+  USD: '$',
+  EUR: '€',
+  GBP: '£',
+};
+
+export const currencyLabel = (cfg?: { currency?: string; currency_label?: string } | null): string => {
+  if (cfg?.currency_label) return cfg.currency_label;
+  return CURRENCIES[String(cfg?.currency || 'EGP').toUpperCase()] || CURRENCIES.EGP;
+};
