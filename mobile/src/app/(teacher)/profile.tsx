@@ -33,6 +33,8 @@ export default function ProfileScreen() {
   const [subject, setSubject] = useState(profile?.subject || '');
   const [grades, setGrades] = useState<string[]>(profile?.grade_level || []);
   const [aiModel, setAiModel] = useState<'flash' | 'pro'>(profile?.preferred_ai_model === 'pro' ? 'pro' : 'flash');
+  const [groups, setGroups] = useState<string[]>(Array.isArray(profile?.groups) ? profile.groups : []);
+  const [newGroup, setNewGroup] = useState('');
   const [saving, setSaving] = useState(false);
 
   const admin = isAdminUser(profile as any, user?.email);
@@ -46,7 +48,7 @@ export default function ProfileScreen() {
   const save = async () => {
     setSaving(true);
     try {
-      await updateProfile({ name: name.trim(), phone: phone.trim(), subject: subject.trim(), grade_level: grades, preferred_ai_model: aiModel });
+      await updateProfile({ name: name.trim(), phone: phone.trim(), subject: subject.trim(), grade_level: grades, preferred_ai_model: aiModel, groups });
       await refreshProfile();
       Alert.alert(t('done'), t('saved'));
     } catch (e: any) {
@@ -135,6 +137,34 @@ export default function ProfileScreen() {
             );
           })}
         </View>
+        <Text style={typography.label}>🏫 السناتر / المجموعات / المواعيد</Text>
+        <Text style={[typography.caption, { marginBottom: 4 }]}>
+          أضف أسماء مجموعاتك (مثال: «سنتر النور — السبت 4م») — سيختار منها الطالب قبل بدء الاختبار وتُستخدم للفلترة في النتائج.
+        </Text>
+        <View style={styles.chipsWrap}>
+          {groups.map((g) => (
+            <Pressable key={g} onPress={() => setGroups((p) => p.filter((v) => v !== g))} style={styles.groupChip}>
+              <Text style={styles.groupChipText}>{g} ✕</Text>
+            </Pressable>
+          ))}
+          {!groups.length ? <Text style={typography.caption}>لا توجد مجموعات بعد</Text> : null}
+        </View>
+        <View style={styles.groupAddRow}>
+          <View style={{ flex: 1 }}>
+            <Input placeholder="اسم المجموعة أو الميعاد..." value={newGroup} onChangeText={setNewGroup} />
+          </View>
+          <Button
+            title="إضافة"
+            variant="secondary"
+            onPress={() => {
+              const v = newGroup.trim();
+              if (!v) return;
+              if (groups.includes(v)) return setNewGroup('');
+              setGroups((p) => [...p, v]);
+              setNewGroup('');
+            }}
+          />
+        </View>
         <Text style={typography.label}>{t('preferredModel')}</Text>
         <View style={styles.chipsWrap}>
           {([{ v: 'flash' as const, l: t('modelFlash') }, { v: 'pro' as const, l: t('modelPro') }]).map((m) => (
@@ -186,6 +216,9 @@ const styles = StyleSheet.create({
   renewBtn: { marginTop: 12, backgroundColor: colors.primarySoft, borderRadius: radius.md, padding: 12, alignItems: 'center' },
   renewText: { color: colors.primary, fontWeight: '700', fontSize: 13 },
   chipsWrap: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 6, marginVertical: 8 },
+  groupChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  groupChipText: { fontSize: 12, fontWeight: '700', color: colors.primary },
+  groupAddRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginBottom: 8 },
   chip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   chipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { fontSize: 12, color: colors.textSecondary },

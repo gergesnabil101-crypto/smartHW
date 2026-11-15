@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, AppState, StyleSheet, Text, View } from 'react-native';
+import { Alert, AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { collection, getDocs } from 'firebase/firestore';
 import * as Print from 'expo-print';
@@ -247,7 +247,7 @@ export default function TakeQuizScreen() {
       const html = `<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><style>
         body{font-family:Arial,'Segoe UI';direction:rtl;padding:24px;color:#0f172a}
         h1{font-size:20px} .meta{color:#475569;font-size:13px;margin:4px 0}
-        .score{font-size:26px;font-weight:800;color:#4f46e5;margin:12px 0}
+        .score{font-size:26px;font-weight:800;color:#b91c1c;margin:12px 0}
         .q{border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:12px 0}
         .qhead{font-size:15px;line-height:1.7} .ans,.fb,.model{font-size:13px;margin-top:8px;color:#334155}
         .fb{background:#f8fafc;padding:8px;border-radius:8px}
@@ -365,7 +365,27 @@ export default function TakeQuizScreen() {
 
         <Card style={{ marginTop: 16 }}>
           <Input label="اسم الطالب" value={studentName} onChangeText={setStudentName} maxLength={LIMITS.studentNameMax} />
-          <Input label="اسم السنتر / المجموعة (اختياري)" value={centerName} onChangeText={setCenterName} maxLength={LIMITS.centerNameMax} />
+          {Array.isArray(quiz.teacher_groups) && quiz.teacher_groups.length > 0 ? (
+            <View style={{ marginBottom: 10 }}>
+              <Text style={typography.label}>اختر مجموعتك / ميعادك</Text>
+              <View style={styles.groupsRow}>
+                {quiz.teacher_groups.map((g) => {
+                  const on = centerName === g;
+                  return (
+                    <Pressable key={g} onPress={() => setCenterName(on ? '' : g)} style={[styles.groupChip, on && styles.groupChipOn]}>
+                      <Text style={[styles.groupChipText, on && styles.groupChipTextOn]}>{g}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          ) : null}
+          <Input
+            label={Array.isArray(quiz.teacher_groups) && quiz.teacher_groups.length > 0 ? 'أو اكتب مجموعة أخرى (اختياري)' : 'اسم السنتر / المجموعة (اختياري)'}
+            value={centerName}
+            onChangeText={setCenterName}
+            maxLength={LIMITS.centerNameMax}
+          />
           <Input label="رقم ولي الأمر (اختياري)" value={parentPhone} onChangeText={setParentPhone} keyboardType="phone-pad" maxLength={LIMITS.phoneMax} />
           <Input label="رقم الطالب (اختياري)" value={studentPhone} onChangeText={setStudentPhone} keyboardType="phone-pad" maxLength={LIMITS.phoneMax} />
           {quiz.require_student_code ? (
@@ -412,10 +432,15 @@ const styles = StyleSheet.create({
   timer: { textAlign: 'center', fontSize: 18, fontWeight: '800', color: colors.textSecondary, marginTop: 8 },
   timerUrgent: { color: colors.danger },
   scoreCard: { alignItems: 'center', padding: 24, alignSelf: 'stretch' },
-  scoreText: { fontSize: 40, fontWeight: '800', color: colors.primary },
+  scoreText: { fontSize: 40, fontWeight: '800', color: colors.pen },
   notifCard: { backgroundColor: '#b45309', borderRadius: radius.md, padding: 12 },
   notifTitle: { color: '#fff', fontWeight: '800', fontSize: 14, textAlign: 'right' },
   notifMsg: { color: '#fef3c7', fontSize: 12, lineHeight: 20, textAlign: 'right', writingDirection: 'rtl', marginTop: 4 },
   notifMeta: { color: '#fde68a', fontSize: 10, textAlign: 'right', marginTop: 6 },
   cheatWarn: { textAlign: 'center', fontSize: 12, fontWeight: '700', color: colors.danger, marginTop: 4 },
+  groupsRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8, marginTop: 6 },
+  groupChip: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  groupChipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  groupChipText: { fontSize: 13, fontWeight: '700', color: colors.textSecondary },
+  groupChipTextOn: { color: '#fff' },
 });

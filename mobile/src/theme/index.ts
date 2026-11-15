@@ -1,28 +1,31 @@
 import { StyleSheet } from 'react-native';
 
-/** App-wide design tokens — Arabic-first, RTL, light theme. */
+/** App-wide design tokens — Arabic-first, RTL, light theme.
+ *  Identity: a teacher's desk — warm paper background, deep ink-navy chrome,
+ *  and the red correction pen reserved for scores, marks and grading. */
 export const colors = {
-  primary: '#4f46e5',
-  primaryDark: '#3730a3',
-  primarySoft: '#eef2ff',
+  primary: '#16405b',        // deep ink navy — headers, primary actions
+  primaryDark: '#0f2f45',
+  primarySoft: '#e8f0f4',
   accent: '#0d9488',
   accentSoft: '#f0fdfa',
+  pen: '#b91c1c',            // correction-pen red — scores & grading marks
   danger: '#dc2626',
   dangerDark: '#b91c1c',
   dangerSoft: '#fef2f2',
-  warning: '#d97706',
-  warningSoft: '#fffbeb',
-  success: '#16a34a',
-  successDark: '#15803d',
+  warning: '#b45309',
+  warningSoft: '#fef6e7',
+  success: '#15803d',
+  successDark: '#166534',
   successSoft: '#f0fdf4',
-  bg: '#f1f5f9',
+  bg: '#f5f2ea',             // warm paper
   surface: '#ffffff',
-  surfaceTint: '#f8fafc',
-  border: '#e2e8f0',
-  borderSoft: '#eef2f7',
-  text: '#0f172a',
-  textSecondary: '#475569',
-  textMuted: '#94a3b8',
+  surfaceTint: '#faf8f3',
+  border: '#e4ded0',
+  borderSoft: '#eeeae0',
+  text: '#1c2b33',
+  textSecondary: '#4b5d68',
+  textMuted: '#8b97a0',
 } as const;
 
 export const spacing = (n: number) => n * 4;

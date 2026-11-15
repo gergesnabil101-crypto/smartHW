@@ -1,9 +1,48 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import * as FileSystem from 'expo-file-system/legacy';
 import type { Question } from '../types';
 import { colors, radius, typography } from '../theme';
 import { MathText } from './MathText';
 import { Input } from './Input';
+
+/** Plays a question's attached audio clip (data URL → cache file → player). */
+function AudioAttachment({ dataUrl, qid }: { dataUrl: string; qid: string }) {
+  const player = useAudioPlayer();
+  const status = useAudioPlayerStatus(player);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const m = dataUrl.match(/^data:([^;]+);base64,(.*)$/s);
+        if (!m) return;
+        const ext = /m4a|mp4|aac/.test(m[1]) ? 'm4a' : /wav/.test(m[1]) ? 'wav' : /ogg|opus/.test(m[1]) ? 'ogg' : 'mp3';
+        const uri = `${FileSystem.cacheDirectory}qaudio_${qid}.${ext}`;
+        await FileSystem.writeAsStringAsync(uri, m[2], { encoding: 'base64' });
+        if (alive) {
+          player.replace({ uri });
+          setReady(true);
+        }
+      } catch { /* audio is optional — ignore */ }
+    })();
+    return () => { alive = false; try { player.pause(); } catch {} };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataUrl, qid]);
+
+  const playing = status.playing;
+  return (
+    <Pressable
+      disabled={!ready}
+      onPress={() => { if (playing) player.pause(); else { player.seekTo(0); player.play(); } }}
+      style={styles.audioBtn}
+    >
+      <Text style={styles.audioBtnText}>{playing ? '⏸ إيقاف الصوت' : ready ? '▶ تشغيل المقطع الصوتي' : '⏳ جاري تجهيز الصوت...'}</Text>
+    </Pressable>
+  );
+}
 
 interface Props {
   question: Question;
@@ -36,6 +75,8 @@ export function QuestionCard({ question, index, value, onChange, disabled }: Pro
       {question.image ? (
         <Image source={{ uri: question.image }} style={styles.image} resizeMode="contain" />
       ) : null}
+
+      {question.audio ? <AudioAttachment dataUrl={question.audio} qid={question.id} /> : null}
 
       {type === 'essay' ? (
         <Input
@@ -84,6 +125,8 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row-reverse', justifyContent: 'space-between', marginBottom: 8 },
   questionText: { marginBottom: 10 },
   image: { width: '100%', height: 180, borderRadius: radius.md, marginBottom: 10 },
+  audioBtn: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingVertical: 10, alignItems: 'center', backgroundColor: colors.surfaceTint, marginBottom: 10 },
+  audioBtnText: { fontSize: 13, fontWeight: '700', color: colors.primary },
   options: { gap: 8 },
   option: {
     flexDirection: 'row-reverse',

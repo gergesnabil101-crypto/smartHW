@@ -20,6 +20,48 @@ const MAX_RECEIPT_CHARS = 2_900_000;
 // 'iap' = Google Play Billing only (store-compliant). 'manual' = receipt upload
 // flow used on the web. Controlled via expo.extra.paymentsMode in app.json.
 const PAYMENTS_MODE = (Constants.expoConfig?.extra as any)?.paymentsMode === 'manual' ? 'manual' : 'iap';
+// expo-iap's native module doesn't exist inside Expo Go — mounting useIAP there
+// only produces a console error, so the bridge component is skipped entirely.
+const IAP_AVAILABLE = PAYMENTS_MODE === 'iap' && Constants.executionEnvironment !== 'storeClient';
+
+interface IapApi {
+  connected: boolean;
+  subscriptions: any[];
+  requestPurchase: (req: any) => Promise<unknown>;
+  finishTransaction: (req: { purchase: any; isConsumable?: boolean }) => Promise<unknown>;
+}
+
+/** Mounts useIAP and reports the store API back to the parent. Renders nothing. */
+function PlayBillingBridge({
+  onApi,
+  onPurchaseSuccess,
+  onPurchaseError,
+}: {
+  onApi: (api: IapApi) => void;
+  onPurchaseSuccess: (purchase: any) => void;
+  onPurchaseError: (error: any) => void;
+}) {
+  const iap = useIAP({ onPurchaseSuccess, onPurchaseError, onError: () => {} });
+
+  useEffect(() => {
+    onApi({
+      connected: iap.connected,
+      subscriptions: iap.subscriptions as any[],
+      requestPurchase: iap.requestPurchase,
+      finishTransaction: iap.finishTransaction,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [iap.connected, iap.subscriptions]);
+
+  useEffect(() => {
+    if (iap.connected) {
+      iap.fetchProducts({ skus: PLANS.map((p) => p.id), type: 'subs' }).catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [iap.connected]);
+
+  return null;
+}
 
 export default function SubscriptionScreen() {
   const { initialized, user, profile, refreshProfile } = useAuth();
@@ -32,39 +74,31 @@ export default function SubscriptionScreen() {
   const [cur, setCur] = useState('ج.م');
   const [planOverrides, setPlanOverrides] = useState<Record<string, { monthly?: number; yearly?: number }>>({});
   const [verifying, setVerifying] = useState(false);
+  const [iapApi, setIapApi] = useState<IapApi>({ connected: false, subscriptions: [], requestPurchase: async () => {}, finishTransaction: async () => {} });
+  const { connected, subscriptions } = iapApi;
 
-  // Google Play Billing — live in production builds (iap mode). In Expo Go the
-  // native module is absent, so `connected` stays false and we show a hint.
-  const { connected, subscriptions, fetchProducts, requestPurchase, finishTransaction } = useIAP({
-    onPurchaseSuccess: async (purchase: any) => {
-      try {
-        setVerifying(true);
-        const token = purchase?.purchaseToken ?? purchase?.purchaseTokenAndroid;
-        const productId = String(purchase?.productId ?? purchase?.id ?? '');
-        if (!token || !productId) throw new Error('بيانات الشراء ناقصة من المتجر.');
-        await verifyPlayPurchase(productId, String(token));
-        await finishTransaction({ purchase, isConsumable: false }).catch(() => {});
-        await refreshProfile?.().catch(() => {});
-        setSelected(null);
-        Alert.alert('تم تفعيل اشتراكك ✅', 'شكراً! تم تفعيل باقتك عبر Google Play ورصيدك الجديد جاهز.');
-      } catch (e: any) {
-        Alert.alert('تعذر تفعيل الاشتراك', 'تم الدفع لدى المتجر لكن فشل التفعيل — تواصل معنا عبر واتساب وسنفعّله يدوياً فوراً.\n' + (e?.message || ''));
-      } finally {
-        setVerifying(false);
-      }
-    },
-    onPurchaseError: (error: any) => {
-      if (String(error?.code || '') === 'user-cancelled') return;
-      Alert.alert('فشل الشراء', error?.message || 'حدث خطأ أثناء الدفع عبر Google Play.');
-    },
-    onError: (e: any) => { /* store connection unavailable (Expo Go) — silent */ },
-  });
-
-  useEffect(() => {
-    if (PAYMENTS_MODE === 'iap' && connected) {
-      fetchProducts({ skus: PLANS.map((p) => p.id), type: 'subs' }).catch(() => {});
+  const handlePurchaseSuccess = async (purchase: any) => {
+    try {
+      setVerifying(true);
+      const token = purchase?.purchaseToken ?? purchase?.purchaseTokenAndroid;
+      const productId = String(purchase?.productId ?? purchase?.id ?? '');
+      if (!token || !productId) throw new Error('بيانات الشراء ناقصة من المتجر.');
+      await verifyPlayPurchase(productId, String(token));
+      await iapApi.finishTransaction({ purchase, isConsumable: false }).catch(() => {});
+      await refreshProfile?.().catch(() => {});
+      setSelected(null);
+      Alert.alert('تم تفعيل اشتراكك ✅', 'شكراً! تم تفعيل باقتك عبر Google Play ورصيدك الجديد جاهز.');
+    } catch (e: any) {
+      Alert.alert('تعذر تفعيل الاشتراك', 'تم الدفع لدى المتجر لكن فشل التفعيل — تواصل معنا عبر واتساب وسنفعّله يدوياً فوراً.\n' + (e?.message || ''));
+    } finally {
+      setVerifying(false);
     }
-  }, [connected]);
+  };
+
+  const handlePurchaseError = (error: any) => {
+    if (String(error?.code || '') === 'user-cancelled') return;
+    Alert.alert('فشل الشراء', error?.message || 'حدث خطأ أثناء الدفع عبر Google Play.');
+  };
 
   const playPrice = (p: PlanOption): string | null => {
     const s = (subscriptions as any[]).find((x) => String(x.id ?? x.productId ?? '') === p.id);
@@ -78,7 +112,7 @@ export default function SubscriptionScreen() {
         { text: 'واتساب', onPress: askWhatsApp },
       ]);
     }
-    requestPurchase({
+    iapApi.requestPurchase({
       request: { google: { skus: [p.id], obfuscatedAccountId: user?.uid || undefined } },
       type: 'subs',
     }).catch(() => {});
@@ -236,6 +270,9 @@ export default function SubscriptionScreen() {
 
   return (
     <Screen>
+      {IAP_AVAILABLE ? (
+        <PlayBillingBridge onApi={setIapApi} onPurchaseSuccess={handlePurchaseSuccess} onPurchaseError={handlePurchaseError} />
+      ) : null}
       {/* Billing cycle toggle */}
       <View style={styles.cycleRow}>
         {(['monthly', 'yearly'] as const).map((c) => (

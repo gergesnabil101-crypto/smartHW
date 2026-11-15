@@ -353,7 +353,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.full, backgroundColor: colors.surface,
     borderWidth: 1, borderColor: colors.border,
   },
-  folderChipActive: { backgroundColor: colors.primary, borderColor: colors.primary, elevation: 3, shadowColor: colors.primary, shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
+  folderChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   folderChipText: { color: colors.textSecondary, fontSize: 13, fontWeight: '600' },
   folderChipTextActive: { color: '#fff' },
   list: { padding: 16, flexGrow: 1 },

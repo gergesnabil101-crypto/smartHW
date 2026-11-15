@@ -5042,7 +5042,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
 
   app.put('/api/user/profile', authenticateFirebaseUser, async (req: any, res: any) => {
     try {
-      const { name, phone, subject, grade_level, curriculum, avatar_data } = req.body;
+      const { name, phone, subject, grade_level, curriculum, avatar_data, groups, preferred_ai_model } = req.body;
       const updateData: any = {};
       if (name !== undefined) updateData.name = name;
       if (phone !== undefined) updateData.phone = phone;
@@ -5050,6 +5050,12 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
       if (grade_level !== undefined) updateData.grade_level = grade_level;
       if (curriculum !== undefined) updateData.curriculum = curriculum;
       if (avatar_data !== undefined) updateData.avatar_data = avatar_data;
+      if (preferred_ai_model !== undefined) updateData.preferred_ai_model = preferred_ai_model;
+      if (groups !== undefined) {
+        updateData.groups = Array.isArray(groups)
+          ? groups.map((g: any) => String(g).trim()).filter(Boolean).slice(0, 50)
+          : [];
+      }
 
       await adminDb.collection('users').doc(req.user.uid).set(updateData, { merge: true });
       res.json({ success: true });
@@ -5770,7 +5776,8 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
             teacher_name: t.name,
             teacher_subject: t.subject,
             teacher_grade_level: t.grade_level,
-            teacher_avatar: t.avatar_data
+            teacher_avatar: t.avatar_data,
+            teacher_groups: Array.isArray(t.groups) ? t.groups : []
           };
         }
       }

@@ -50,6 +50,7 @@ export interface Quiz {
   ai_model?: 'flash' | 'pro';
   require_student_code?: boolean;
   student_codes?: StudentCode[];
+  teacher_groups?: string[];
 }
 
 export interface Folder {
@@ -127,6 +128,7 @@ export interface UserProfile {
   billing_cycle?: string;
   hasPendingSubscription?: boolean;
   preferred_ai_model?: 'flash' | 'pro';
+  groups?: string[];
   created_at?: unknown;
 }
 
