@@ -165,3 +165,26 @@
 2. إنشاء منتجات الاشتراك في Play Console بنفس الـ product IDs في `lib/plans.ts`
 3. تفعيل Google Play Developer API لحساب الخدمة (لتحقق الشراء في السيرفر)
 4. AAB production → رفع على Play Console + رابط `/privacy` في Data safety
+
+## استئناف — 15 نوفمبر (مجموعات المعلم + مرفقات السؤال + إصلاح IAP + هوية الحبر والورق)
+
+### ✅ تم وحُفظ في 638c821
+- 🏫 مجموعات المعلم: محرر في البروفايل → الطالب يختار مجموعته قبل الاختبار → يُحفظ كـ center_name → فلتر النتائج الجاهز يشتغل عليه تلقائياً
+- 📷🎤 مرفقات السؤال: صورة أو مقطع صوتي قصير لكل سؤال من محرر الأسئلة اليدوي — تظهر للطالب داخل الاختبار (مشغّل expo-audio)، ونص السؤال اختياري لو فيه صورة
+- 🔧 إصلاح console error في شاشة الباقات: useIAP انتقل خلف PlayBillingBridge لا يعمل إلا خارج Expo Go (executionEnvironment !== 'storeClient') + finishTransaction محفوظ
+- 🎨 هوية «الحبر والورق»: خلفية ورق دافئة #f5f2ea + كحلي حبر #16405b + أحمر قلم التصحيح #b91c1c للدرجات + حذف آخر توهج ملوّن
+
+### ❌ عالق — يحتاج المستخدم
+- **نشر السيرفر**: تعديلات server.ts (حفظ groups + preferred_ai_model التي كانت تُسقط صامتاً + إرسال teacher_groups للطلاب) غير منشورة — جلسة gcloud منتهية. المستخدم يشغّل `gcloud auth login` ثم أعيد: `gcloud run deploy mosahah-api --source . --region europe-west1 --allow-unauthenticated --port 8080 --memory 1Gi --timeout 300 --env-vars-file .env.production.yaml`
+- ملاحظة: `--env-vars-file` هو الصحيح لإصدار gcloud ده (مش --set-env-file)
+- gcloud على الجهاز: `C:\Users\GERGE\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd` — يعمل من PowerShell مش git-bash
+
+### ⚠️ حالة Metro
+- شغّلته بـ `CI=true npx expo start --host lan` — كان لسه بيبني file map وقت الحفظ. لو مقفول بكرة: نفس الأمر، استنى ~5 دقايق لـ status=200، وأول bundle ~15-20 دقيقة
+- العنوان: `exp://192.168.1.38:8081`
+
+### ⏭️ بكرة
+1. `gcloud auth login` (المستخدم) → إعادة نشر السيرفر → تجربة المجموعات end-to-end
+2. تجربة مرفقات السؤال + الثيم الجديد على الموبايل
+3. `eas build --profile development` لتجربة IAP الحقيقي
+4. منتجات اشتراك Play Console + Play Developer API لحساب الخدمة
