@@ -188,3 +188,26 @@
 2. تجربة مرفقات السؤال + الثيم الجديد على الموبايل
 3. `eas build --profile development` لتجربة IAP الحقيقي
 4. منتجات اشتراك Play Console + Play Developer API لحساب الخدمة
+
+## استئناف — 16 نوفمبر (نشر السيرفر + توحيد مضاعف برو)
+
+### ✅ تم
+- نشر السيرفر `mosahah-api-00011-hll` — فيه groups + preferred_ai_model + teacher_groups
+- توحيد مضاعف برو على ×6 (الخصم الفعلي كان ×6 والعرض التجاري ×7) — `1a1208b`
+- الباندل اتبنى ومتكاش — التطبيق يفتح على `exp://192.168.1.38:8081`
+
+### ⚠️ عالق عند المستخدم
+- Expo Go مش بيفتح على موبايله — Metro + الباندل سليمين من الجهاز. تشخيص معلّق على: افتح `http://192.168.1.38:8081` من متصفح الموبايل (لو فتح = Expo Go نفسه؛ لو لأ = مشكلة شبكة/VPN/جدار حماية)
+
+### ⏭️ المتبقي للنشر على Google Play
+1. حل مشكلة اتصال Expo Go وتجربة المزايا الجديدة (مجموعات/مرفقات/ثيم)
+2. `eas build --profile development` — نسخة تطوير لتجربة IAP الحقيقي (eas-cli بينزّل: `npx eas-cli whoami` للتحقق من تسجيل الدخول بحساب Expo)
+3. منتجات الاشتراك في Play Console بنفس IDs في `mobile/src/lib/plans.ts`
+4. تفعيل Google Play Developer API لحساب الخدمة (تحقق `/api/iap/android/verify`)
+5. `eas build --profile production` → AAB → Play Console + Data safety + رابط `/privacy`
+6. إعادة نشر السيرفر مرة أخيرة (تعديل المضاعف ×6 لسه مش منشور — تأثيره على الافتراضي فقط)
+
+### ملاحظات تقنية
+- gcloud يشتغل من PowerShell فقط: `& "C:\Users\GERGE\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd" run deploy mosahah-api --source . --region europe-west1 --allow-unauthenticated --port 8080 --memory 1Gi --timeout 300 --env-vars-file .env.production.yaml --quiet`
+- Metro: `CI=true npx expo start --host lan` (إجباري — الواتشر معلّق بدون watchman)
+- npm audit: 11 ثغرات (7 متوسطة/4 عالية) معلّقة — مراجعة يدوية مش force-fix
