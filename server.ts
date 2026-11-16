@@ -78,7 +78,7 @@ interface PricingConfig {
 }
 const PRICING_DEFAULTS: PricingConfig = {
   flash_output_multiplier: 5,
-  pro_output_multiplier: 7,
+  pro_output_multiplier: 6,
   flash_price_per_million: 200,
   pro_price_per_million: 250,
   plan_prices: {},

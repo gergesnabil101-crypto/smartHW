@@ -20,7 +20,7 @@ export default function AdminPricingScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [flashMult, setFlashMult] = useState('5');
-  const [proMult, setProMult] = useState('7');
+  const [proMult, setProMult] = useState('6');
   const [flashPrice, setFlashPrice] = useState('200');
   const [proPrice, setProPrice] = useState('250');
   const [planPrices, setPlanPrices] = useState<Record<string, { monthly: string; yearly: string }>>({});
