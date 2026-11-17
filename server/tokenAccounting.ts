@@ -7,6 +7,16 @@ import { createHash } from 'crypto';
    export const FLASH_OUTPUT_MULTIPLIER = 5;
    export const PRO_OUTPUT_MULTIPLIER = 6;
 
+   // Admin-configured overrides from platform_config/pricing (wired by server.ts
+   // loadPricingConfig). When unset, the fixed defaults above apply.
+   let flashOutputOverride: number | null = null;
+   let proOutputOverride: number | null = null;
+
+   export const setBillableOutputMultipliers = (flash?: number | null, pro?: number | null) => {
+     flashOutputOverride = Number(flash) > 0 ? Number(flash) : null;
+     proOutputOverride = Number(pro) > 0 ? Number(pro) : null;
+   };
+
    export type TokenOperation = 'essay_grading' | 'doc_extraction' | 'quiz_generation' | 'image_ocr' | 'general';
 
    export interface TokenUsageParams {
@@ -60,7 +70,9 @@ import { createHash } from 'crypto';
                                                                                  export const isProModel = (model?: string | null): boolean => String(model || '').toLowerCase().includes('pro');
 
                                                                                  export const getOutputMultiplier = (model?: string | null): number =>
-                                                                                   isProModel(model) ? PRO_OUTPUT_MULTIPLIER : FLASH_OUTPUT_MULTIPLIER;
+                                                                                   isProModel(model)
+                                                                                     ? (proOutputOverride ?? PRO_OUTPUT_MULTIPLIER)
+                                                                                     : (flashOutputOverride ?? FLASH_OUTPUT_MULTIPLIER);
 
                                                                                    /** Billable tokens = prompt + candidates * multiplier (x5 Flash, x6 Pro). */
                                                                                    export const computeBillableTokens = (promptTokens: number, candidatesTokens: number, model?: string | null): number => {

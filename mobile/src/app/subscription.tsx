@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Redirect } from 'expo-router';
 import Constants from 'expo-constants';
 import * as ImagePicker from 'expo-image-picker';
@@ -8,7 +8,7 @@ import { useAuth } from '../store/AuthContext';
 import { db } from '../lib/firebase';
 import { getPricing, verifyPlayPurchase } from '../lib/services';
 import { useIAP } from 'expo-iap';
-import { PLANS, PLAN_GROUPS, currencyLabel, type PlanOption } from '../lib/plans';
+import { PLANS, currencyLabel, type PlanOption } from '../lib/plans';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
@@ -22,7 +22,17 @@ const MAX_RECEIPT_CHARS = 2_900_000;
 const PAYMENTS_MODE = (Constants.expoConfig?.extra as any)?.paymentsMode === 'manual' ? 'manual' : 'iap';
 // expo-iap's native module doesn't exist inside Expo Go — mounting useIAP there
 // only produces a console error, so the bridge component is skipped entirely.
-const IAP_AVAILABLE = PAYMENTS_MODE === 'iap' && Constants.executionEnvironment !== 'storeClient';
+const IAP_AVAILABLE = PAYMENTS_MODE === 'iap' && Constants.executionEnvironment !== 'storeClient' && Constants.appOwnership !== 'expo';
+
+// Google Play SKUs are fixed products — when paying via the store the millions
+// counter can only pick sizes that exist as Play subscriptions.
+const IAP_SIZES = [1, 2, 3, 5, 10];
+const MAX_MILLIONS = 50;
+
+const SYSTEMS: { group: 'tokens' | 'pro_tokens'; pro: boolean; title: string; desc: string }[] = [
+  { group: 'tokens', pro: false, title: 'نظام فلاش ⚡', desc: 'نموذج فلاش فائق السرعة — الأنسب للتصحيح اليومي السريع' },
+  { group: 'pro_tokens', pro: true, title: 'نظام برو 👑', desc: 'استدلال وتفكير عميق (Gemini Pro) — الأدق للمقالات والأسئلة المعقدة' },
+];
 
 interface IapApi {
   connected: boolean;
@@ -76,6 +86,8 @@ export default function SubscriptionScreen() {
   const [verifying, setVerifying] = useState(false);
   const [iapApi, setIapApi] = useState<IapApi>({ connected: false, subscriptions: [], requestPurchase: async () => {}, finishTransaction: async () => {} });
   const { connected, subscriptions } = iapApi;
+  // عداد الملايين لكل نظام — المستخدم يختار كم مليون توكن يريد ويظهر سعر الدفع.
+  const [millions, setMillions] = useState<Record<'tokens' | 'pro_tokens', number>>({ tokens: 2, pro_tokens: 2 });
 
   const handlePurchaseSuccess = async (purchase: any) => {
     try {
@@ -139,6 +151,46 @@ export default function SubscriptionScreen() {
     [cycle, planOverrides]
   );
 
+  // --- Millions counter: builds a plan from "price per million × chosen millions" ---
+  const setM = (g: 'tokens' | 'pro_tokens', v: number) =>
+    setMillions((prev) => ({ ...prev, [g]: Math.min(MAX_MILLIONS, Math.max(1, Math.round(v) || 1)) }));
+
+  const stepM = (g: 'tokens' | 'pro_tokens', dir: 1 | -1) => {
+    const m = millions[g] || 1;
+    if (PAYMENTS_MODE === 'iap') {
+      // Snap to the sizes that actually exist as Play store products.
+      const i = IAP_SIZES.indexOf(m);
+      setM(g, IAP_SIZES[Math.min(IAP_SIZES.length - 1, Math.max(0, i + dir))]);
+    } else {
+      setM(g, m + dir);
+    }
+  };
+
+  const planFor = (g: 'tokens' | 'pro_tokens'): PlanOption => {
+    const m = millions[g] || 1;
+    const pro = g === 'pro_tokens';
+    const ppm = pro ? pricePerMillion.pro : pricePerMillion.flash;
+    const sku = `${pro ? 'pro_' : ''}token_${m}M`;
+    const base = PLANS.find((p) => p.id === sku);
+    return {
+      id: sku,
+      name: `باقة ${m} مليون توكن${pro ? ' برو 👑' : ''}`,
+      group: g,
+      monthlyPrice: m * ppm,
+      yearlyPrice: m * ppm * 10,
+      popular: m === 2,
+      features: base?.features || [
+        pro ? 'استدلال وتفكير عميق (Gemini Pro)' : 'نموذج فلاش فائق السرعة',
+        `تكفي ~${Math.round(m * (pro ? 1600 : 2000)).toLocaleString('en')} إجابة مقالية`,
+      ],
+    };
+  };
+
+  // IAP can only purchase sizes that exist as Play products.
+  const iapBuyable = (p: PlanOption | null) =>
+    PAYMENTS_MODE !== 'iap' || IAP_SIZES.includes(Number(((p?.id.match(/(\d+)M/) || [])[1]) || 0));
+
+
   const MILLION = 1_000_000;
   const isPro = profile?.preferred_ai_model === 'pro' || (profile?.preferred_ai_model as any) === 'gemini_pro' || String(profile?.subscription_type || '').startsWith('pro_');
 
@@ -198,6 +250,7 @@ export default function SubscriptionScreen() {
     setSubmitting(true);
     try {
       const ref = doc(collection(db, 'subscription_requests'));
+      const mNum = Number((selected.id.match(/(\d+)M/) || [])[1]) || 1;
       await setDoc(ref, {
         id: ref.id,
         user_id: user.uid,
@@ -206,6 +259,13 @@ export default function SubscriptionScreen() {
         user_phone: profile?.phone || '',
         user_subject: profile?.subject || '',
         plan: selected.id,
+        tokens_millions: mNum,
+        custom_details: JSON.stringify({
+          plan_name: selected.name,
+          system: selected.group === 'pro_tokens' ? 'gemini_pro' : 'gemini_flash',
+          amount: price(selected),
+          currency: cur,
+        }),
         billing_cycle: cycle,
         screenshot_data: receipt,
         status: 'pending',
@@ -306,45 +366,79 @@ export default function SubscriptionScreen() {
         </Card>
       ) : null}
 
-      {PLAN_GROUPS.map((g) => (
-        <View key={g.key}>
-          <Text style={[typography.h3, styles.groupTitle]}>
-            {g.key === 'tokens'
-              ? `باقات التوكنز — فلاش ⚡ (${pricePerMillion.flash} ${cur} / مليون)`
-              : `باقات التوكنز — برو 👑 (${pricePerMillion.pro} ${cur} / مليون)`}
-          </Text>
-          {PLANS.filter((p) => p.group === g.key).map((p) => (
-            <Card key={p.id} onPress={() => setSelected(p)} style={p.popular ? styles.popularCard : undefined}>
-              <View style={styles.planHead}>
-                <View style={{ flex: 1 }}>
-                  <Text style={typography.h3}>
-                    {p.name}{p.popular ? ' ⭐' : ''}
-                  </Text>
-                  <Text style={[typography.caption, { textAlign: 'right' }]}>
-                    {p.features.slice(0, 2).join(' • ')}
-                  </Text>
-                </View>
-                <View style={styles.priceBox}>
-                  {PAYMENTS_MODE === 'iap' && playPrice(p) ? (
-                    <>
-                      <Text style={styles.priceNum}>{playPrice(p)}</Text>
-                      <Text style={styles.priceUnit}>{cycle === 'monthly' ? 'شهر' : 'سنة'}</Text>
-                    </>
-                  ) : (
-                    <>
-                      <Text style={styles.priceNum}>{price(p)}</Text>
-                      <Text style={styles.priceUnit}>{cur} / {cycle === 'monthly' ? 'شهر' : 'سنة'}</Text>
-                    </>
-                  )}
-                </View>
+      {SYSTEMS.map((s) => {
+        const m = millions[s.group] || 1;
+        const ppm = s.pro ? pricePerMillion.pro : pricePerMillion.flash;
+        const plan = planFor(s.group);
+        const total = cycle === 'monthly' ? plan.monthlyPrice : plan.yearlyPrice;
+        const buyable = iapBuyable(plan);
+        return (
+          <Card key={s.group} style={s.pro ? styles.popularCard : undefined}>
+            <View style={styles.planHead}>
+              <View style={{ flex: 1 }}>
+                <Text style={typography.h3}>{s.title}</Text>
+                <Text style={[typography.caption, { textAlign: 'right' }]}>{s.desc}</Text>
               </View>
-              <Pressable onPress={() => setSelected(p)} style={styles.subscribeBtn}>
-                <Text style={styles.subscribeText}>اشترك الآن</Text>
-              </Pressable>
-            </Card>
-          ))}
-        </View>
-      ))}
+              <View style={styles.priceBox}>
+                <Text style={styles.priceNum}>{ppm}</Text>
+                <Text style={styles.priceUnit}>{cur} / مليون توكن</Text>
+              </View>
+            </View>
+
+            {/* عداد الملايين */}
+            <View style={styles.millionsRow}>
+              <Text style={styles.millionsLabel}>عدد الملايين</Text>
+              <View style={styles.stepper}>
+                <Pressable onPress={() => stepM(s.group, 1)} style={styles.stepBtn} accessibilityLabel="زيادة">
+                  <Text style={styles.stepText}>+</Text>
+                </Pressable>
+                <TextInput
+                  style={styles.millionsInput}
+                  keyboardType="number-pad"
+                  value={String(m)}
+                  onChangeText={(t) => {
+                    const digits = t.replace(/[^0-9]/g, '');
+                    if (digits === '') return;
+                    setM(s.group, Number(digits));
+                  }}
+                />
+                <Pressable onPress={() => stepM(s.group, -1)} style={styles.stepBtn} accessibilityLabel="نقصان">
+                  <Text style={styles.stepText}>−</Text>
+                </Pressable>
+              </View>
+            </View>
+
+            {/* سعر الدفع المحسوب */}
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>سعر الدفع</Text>
+              <Text style={styles.totalValue}>
+                {PAYMENTS_MODE === 'iap' && buyable && playPrice(plan)
+                  ? playPrice(plan)
+                  : `${total.toLocaleString('en')} ${cur}`}
+                {' / '}{cycle === 'monthly' ? 'شهر' : 'سنة'}
+              </Text>
+            </View>
+            <Text style={styles.totalHint}>
+              {cycle === 'monthly'
+                ? `${m} مليون × ${ppm} ${cur} — تُخصم التوكنز من رصيدك حسب الاستخدام الفعلي`
+                : `${m} مليون × ${ppm} ${cur} × 10 أشهر (شهرين مجاناً)`}
+            </Text>
+            {!buyable ? (
+              <Text style={[styles.totalHint, { color: colors.warning }]}>
+                الشراء عبر المتجر متاح بأحجام 1/2/3/5/10 مليون فقط — الأحجام الأخرى عبر التحويل اليدوي على واتساب.
+              </Text>
+            ) : null}
+
+            <Pressable
+              onPress={() => { setReceipt(null); setSelected(plan); }}
+              disabled={!buyable}
+              style={[styles.subscribeBtn, !buyable && { opacity: 0.45 }]}
+            >
+              <Text style={styles.subscribeText}>اشترك الآن — {total.toLocaleString('en')} {cur}</Text>
+            </Pressable>
+          </Card>
+        );
+      })}
 
       <Pressable onPress={askWhatsApp} style={styles.waRow}>
         <Text style={styles.waText}>💬 محتاج مساعدة في الاختيار؟ كلمنا واتساب</Text>
@@ -371,6 +465,7 @@ export default function SubscriptionScreen() {
                     title={verifying ? 'جاري تفعيل الاشتراك...' : `💳 اشترك عبر Google Play — ${selected ? (playPrice(selected) ?? `${price(selected)} ${cur}`) : ''}`}
                     onPress={() => selected && buyWithPlay(selected)}
                     loading={verifying}
+                    disabled={!iapBuyable(selected)}
                   />
                 </>
               ) : (
@@ -431,7 +526,27 @@ const styles = StyleSheet.create({
   cycleChipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   cycleText: { fontSize: 13, fontWeight: '700', color: colors.textSecondary },
   cycleTextOn: { color: '#fff' },
-  groupTitle: { marginTop: 10, marginBottom: 8, textAlign: 'right' },
+  millionsRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginTop: 14 },
+  millionsLabel: { fontSize: 14, fontWeight: '800', color: colors.text },
+  stepper: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  stepBtn: {
+    width: 40, height: 40, borderRadius: radius.md, borderWidth: 1, borderColor: colors.primary,
+    backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center',
+  },
+  stepText: { fontSize: 20, fontWeight: '900', color: colors.primary, lineHeight: 24 },
+  millionsInput: {
+    minWidth: 56, height: 40, borderRadius: radius.md, borderWidth: 2, borderColor: colors.primary,
+    backgroundColor: colors.surface, textAlign: 'center', fontSize: 18, fontWeight: '900', color: colors.text,
+    paddingHorizontal: 6,
+  },
+  totalRow: {
+    flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between',
+    marginTop: 12, paddingVertical: 10, paddingHorizontal: 12,
+    borderRadius: radius.md, backgroundColor: colors.successSoft, borderWidth: 1, borderColor: colors.success,
+  },
+  totalLabel: { fontSize: 14, fontWeight: '800', color: colors.text },
+  totalValue: { fontSize: 19, fontWeight: '900', color: colors.successDark || colors.success },
+  totalHint: { fontSize: 11, color: colors.textMuted, textAlign: 'right', marginTop: 6 },
   popularCard: { borderWidth: 2, borderColor: colors.primary },
   planHead: { flexDirection: 'row-reverse', alignItems: 'center', gap: 12 },
   priceBox: { alignItems: 'center', minWidth: 70 },

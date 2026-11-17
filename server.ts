@@ -12,7 +12,7 @@ import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getAppCheck } from 'firebase-admin/app-check';
-import { recordTokenUsage, computeBillableTokens, type TokenOperation } from './server/tokenAccounting.ts';
+import { recordTokenUsage, computeBillableTokens, setBillableOutputMultipliers, type TokenOperation } from './server/tokenAccounting.ts';
 import { normalizeGradingResult, GRADING_RESPONSE_SCHEMA } from './server/grading.ts';
 import { GoogleAuth } from 'google-auth-library';
 
@@ -94,6 +94,8 @@ async function loadPricingConfig(force = false): Promise<PricingConfig> {
       pricingConfigLoadedAt = Date.now();
     }
   } catch (_) {}
+  // Keep the real wallet deduction in sync with the admin-configured margins.
+  setBillableOutputMultipliers(pricingConfigCache.flash_output_multiplier, pricingConfigCache.pro_output_multiplier);
   return pricingConfigCache;
 }
 const getOutputMultiplier = (isPro: boolean): number =>
@@ -4407,12 +4409,15 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
 
       // Normalize: a subscription period must never exceed its billing cycle
       // length — repairs end dates inflated by the old renewal-stacking bug.
+      // An explicit subscription_duration_days (set by manual activation for
+      // 60/90/180/365-day plans) takes precedence over the cycle guess.
       const uIsAdmin = u.role === 'admin' || u.admin === true || uEmail === 'gergesnabil101@gmail.com';
       if (uIsAdmin) { u.role = 'admin'; u.admin = true; }
       if (!uIsAdmin && u.subscription_end_date) {
         const end = new Date(u.subscription_end_date).getTime();
+        const explicitDays = Number(u.subscription_duration_days) > 0 ? Number(u.subscription_duration_days) : null;
         const cycleDays = u.billing_cycle === 'yearly' ? 365
-          : (u.subscription_status === 'trial' || u.subscription_status === 'pending_approval' ? 5 : 30);
+          : (u.subscription_status === 'trial' || u.subscription_status === 'pending_approval' ? 5 : (explicitDays || 30));
         const maxEnd = now.getTime() + cycleDays * 24 * 60 * 60 * 1000;
         if (end > maxEnd) {
           const clamped = new Date(maxEnd).toISOString();
@@ -4691,6 +4696,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
       await adminDb.collection('platform_config').doc('pricing').set(next, { merge: true });
       pricingConfigCache = { ...pricingConfigCache, ...next };
       pricingConfigLoadedAt = Date.now();
+      setBillableOutputMultipliers(pricingConfigCache.flash_output_multiplier, pricingConfigCache.pro_output_multiplier);
       res.json({ success: true, pricing: pricingConfigCache });
     } catch (err: any) {
       res.status(500).json({ error: err.message });

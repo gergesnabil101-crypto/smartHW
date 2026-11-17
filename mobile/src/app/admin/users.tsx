@@ -147,6 +147,7 @@ export default function AdminUsersScreen() {
         subscription_status: 'active',
         subscription_type: planId,
         billing_cycle: actDays >= 365 ? 'yearly' : 'monthly',
+        subscription_duration_days: actDays,
         subscription_end_date: new Date(Date.now() + actDays * 86400000).toISOString(),
         custom_tokens_millions: actMillions,
         preferred_ai_model: actModel === 'pro' ? 'gemini_pro' : 'gemini_flash',
@@ -302,7 +303,7 @@ export default function AdminUsersScreen() {
                   </Text>
                   {days !== null ? (
                     <Text style={[typography.caption, { color: expired ? colors.danger : days <= 7 ? colors.warning : colors.textSecondary }]} numberOfLines={1}>
-                      ⏳ {expired ? 'انتهى الاشتراك' : `متبقي ${days} يوم`} — {endDateOf(item)!.toLocaleDateString('ar-EG')}
+                      ⏳ {expired ? 'انتهى الاشتراك' : days === 0 ? 'اليوم الأخير' : `متبقي ${days} يوم`} — {endDateOf(item)!.toLocaleDateString('ar-EG')}
                     </Text>
                   ) : null}
                   <Text style={typography.caption} numberOfLines={1}>
