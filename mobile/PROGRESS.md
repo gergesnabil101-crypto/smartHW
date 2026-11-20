@@ -6,13 +6,11 @@
 - `src/features/auth/googleAuth.ts`: تحميل كسول للمكتبة الأصلية → `GoogleSignin.signIn` → idToken → `signInWithCredential` → مستخدم جديد؟ → `register-profile` + `notify-registration` (idempotent — مش بيمسح اشتراكات)
 - في Expo Go الزر بيعرض تنبيه «يعمل على النسخة المثبتة» — `GOOGLE_SIGNIN_ENABLED` بيشترط خروج من Expo Go + وجود webClientId
 
-### ⚠️ خطوات مطلوبة من المستخدم (Google Cloud Console) قبل ما الزر يشتغل:
+### ✅ الإعداد تم آلياً عبر Firebase Management API (من غير كونسول):
 
-1. **webClientId**: Firebase Console → Authentication → Sign-in method → Google → «Web SDK configuration» → انسخ **Web client ID** وحطّه في `mobile/.env` بدل الفارغ: `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID="XXXX.apps.googleusercontent.com"`
-2. **Android OAuth client**: Google Cloud Console → APIs & Services → Credentials → Create OAuth client ID → Android → package `com.gergesnabil.mosahah` + SHA-1 بتاع الـ keystore (من `eas credentials` أو Play Console بعد أول build)
-3. الزر مش هيشتغل غير في **development/production build** — Expo Go مفيهاش الموديول
-
-## ✅ دفعة 2026-11-19 — السيرفر اتنشر + الرفع تم
+- تطبيق أندرويد اتسجّل في Firebase: `1:609470896445:android:30fc607fd73e2280460d54` — package `com.gergesnabil.mosahah`
+- `webClientId` استُخرج من الـ config واتكتب في `mobile/.env`: `609470896445-nfc294qc24hulqrf3gf6rvoeflehtpii`
+- **الباقي الوحيد**: SHA-1 بتاع keystore التوقيع — بينشئ Android OAuth client تلقائياً لما أضيفه عبر `POST androidApps/{appId}/sha` — الـ SHA-1 هيظهر من `eas credentials` بعد أول dev build (محتاج `eas login` بحساب Expo — آخر خطوة يدوية)
 
 ## ✅ دفعة 2026-11-19 — السيرفر اتنشر + الرفع تم
 
