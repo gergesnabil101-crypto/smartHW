@@ -144,6 +144,10 @@ export interface PricingConfig {
   currency?: string;
   /** Optional display override, e.g. "ج.م" or "$". */
   currency_label?: string;
+  /** Admin-swappable Gemini model IDs — applied server-side within ~1 min. */
+  flash_model?: string;
+  pro_model?: string;
+  image_model?: string;
 }
 export const getPricing = () =>
   api.get<{ pricing: PricingConfig }>('/api/config/pricing').then((r) => r?.pricing || {});

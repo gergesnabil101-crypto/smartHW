@@ -75,6 +75,10 @@ interface PricingConfig {
   flash_price_per_million: number;
   pro_price_per_million: number;
   plan_prices: Record<string, { monthly?: number; yearly?: number }>;
+  /** Admin-swappable model names — live-editable via /api/admin/pricing. */
+  flash_model: string;
+  pro_model: string;
+  image_model: string;
 }
 const PRICING_DEFAULTS: PricingConfig = {
   flash_output_multiplier: 5,
@@ -82,7 +86,13 @@ const PRICING_DEFAULTS: PricingConfig = {
   flash_price_per_million: 200,
   pro_price_per_million: 250,
   plan_prices: {},
+  flash_model: 'gemini-3.8-flash',
+  pro_model: 'gemini-3.1-pro-preview',
+  image_model: 'gemini-3.1-flash-image',
 };
+const cfgFlashModel = (): string => pricingConfigCache.flash_model || PRICING_DEFAULTS.flash_model;
+const cfgProModel = (): string => pricingConfigCache.pro_model || PRICING_DEFAULTS.pro_model;
+const cfgImageModel = (): string => pricingConfigCache.image_model || PRICING_DEFAULTS.image_model;
 let pricingConfigCache: PricingConfig = { ...PRICING_DEFAULTS };
 let pricingConfigLoadedAt = 0;
 async function loadPricingConfig(force = false): Promise<PricingConfig> {
@@ -1221,7 +1231,7 @@ function logTokenUsageEvent(params: {
   studentName?: string;
   usdToEgpRate?: number;
 }) {
-  const model = params.model || 'gemini-3.8-flash';
+  const model = params.model || cfgFlashModel();
   const isPro = model.includes('pro');
   const outputMultiplier = getOutputMultiplier(isPro);
   const promptTokens = Math.max(0, params.promptTokens || 0);
@@ -1569,7 +1579,7 @@ async function startServer() {
         }
       }
 
-      let modelName = 'gemini-3.8-flash';
+      let modelName = cfgFlashModel();
       if (
         isTeacherProAccount ||
         modelOverride === 'pro' || 
@@ -1578,13 +1588,13 @@ async function startServer() {
         modelOverride === 'gemini-2.5-pro' ||
         String(planId || '').toLowerCase().includes('pro')
       ) {
-        modelName = 'gemini-3.1-pro-preview';
-      } else if (modelOverride === 'flash' || modelOverride === 'gemini-3.8-flash') {
-        modelName = 'gemini-3.8-flash';
+        modelName = cfgProModel();
+      } else if (modelOverride === 'flash' || modelOverride === cfgFlashModel() || modelOverride === 'gemini-3.8-flash') {
+        modelName = cfgFlashModel();
       } else if (operation === 'generate_avatar') {
-        modelName = 'gemini-3.1-flash-image';
+        modelName = cfgImageModel();
       } else if (!ALLOWED_GEMINI_MODELS.has(modelName) || modelName.includes('3.6') || modelName.includes('image')) {
-        modelName = 'gemini-3.8-flash';
+        modelName = cfgFlashModel();
       }
 
       // 6. Idempotency Check
@@ -1624,7 +1634,7 @@ async function startServer() {
             }
           }
 
-          if (modelName === 'gemini-3.1-pro-preview' || isTeacherProAccount) {
+          if (modelName === cfgProModel() || isTeacherProAccount) {
             if (!effectiveConfig.thinkingConfig) {
               effectiveConfig.thinkingConfig = { thinkingBudget: 8192 };
             }
@@ -1650,9 +1660,9 @@ async function startServer() {
             }
 
             console.warn(`Server AI model (${modelName}) failed, falling back to flash:`, primaryErr?.message);
-            if (modelName !== 'gemini-3.8-flash') {
+            if (modelName !== cfgFlashModel()) {
               const fallbackResponse = await ai.models.generateContent({
-                model: 'gemini-3.8-flash',
+                model: cfgFlashModel(),
                 contents,
                 config: effectiveConfig
               });
@@ -3147,7 +3157,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
         requestedModel === 'gemini-3.1-pro-preview' || 
         requestedModel === 'gemini-2.5-pro' ||
         String(planId || '').toLowerCase().includes('pro');
-      const modelToUse = isProModel ? 'gemini-3.1-pro-preview' : 'gemini-3.8-flash';
+      const modelToUse = isProModel ? cfgProModel() : cfgFlashModel();
 
       // Output Optimization: JSON with mandatory step-by-step breakdown & helpful feedback
       const gradingPrompt = buildGradingPromptServer({
@@ -3181,10 +3191,10 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
             });
             return { text: response.text || '', usageMetadata: response.usageMetadata, modelUsed: modelToUse };
           } catch (modelErr: any) {
-            if (modelToUse !== 'gemini-3.8-flash') {
-              console.warn(`[Essay Grading] ${modelToUse} failed, falling back to gemini-3.8-flash:`, modelErr?.message);
+            if (modelToUse !== cfgFlashModel()) {
+              console.warn(`[Essay Grading] ${modelToUse} failed, falling back to ${cfgFlashModel()}:`, modelErr?.message);
               const fallbackResponse = await ai.models.generateContent({
-                model: 'gemini-3.8-flash',
+                model: cfgFlashModel(),
                 contents: gradingPrompt,
                 config: {
                   responseMimeType: 'application/json',
@@ -3192,7 +3202,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
                   maxOutputTokens: 1200
                 }
               });
-              return { text: fallbackResponse.text || '', usageMetadata: fallbackResponse.usageMetadata, modelUsed: 'gemini-3.8-flash' };
+              return { text: fallbackResponse.text || '', usageMetadata: fallbackResponse.usageMetadata, modelUsed: cfgFlashModel() };
             }
             throw modelErr;
           }
@@ -3316,7 +3326,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
           userEmail: userEmail || user_email || req.user?.email || undefined,
           operation: operation || 'general',
           operationLabel: operationLabel || operation_label,
-          model: model || 'gemini-3.8-flash',
+          model: model || cfgFlashModel(),
           promptTokens: pTokens,
           candidatesTokens: cTokens,
           cachedTokens: Number(cachedTokens ?? cached_tokens ?? 0),
@@ -3542,7 +3552,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
         daily_trends: [],
         recent_logs: matchingLogs.slice(0, 50),
         pricing_rates: {
-          model_name: isUserPro ? 'Gemini 3.1 Pro (7x Outputs 👑)' : 'gemini-3.8-flash',
+          model_name: isUserPro ? `${cfgProModel()} (${getOutputMultiplier(true)}x Outputs 👑)` : cfgFlashModel(),
           input_per_million_usd: inRate,
           output_per_million_usd: outRate,
           cached_per_million_usd: cachedRate,
@@ -3602,7 +3612,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
           }
 
           const response = await ai.models.generateContent({
-            model: 'gemini-3.1-flash-image',
+            model: cfgImageModel(),
             contents: { parts },
             config: {
               imageConfig: {
@@ -4677,6 +4687,11 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
       }
       if (typeof body.currency_label === 'string' && body.currency_label.trim()) {
         next.currency_label = body.currency_label.trim().slice(0, 12);
+      }
+      // Model names — admin can swap Gemini versions without redeploying.
+      for (const key of ['flash_model', 'pro_model', 'image_model']) {
+        const v = String(body[key] || '').trim();
+        if (/^[a-z0-9][a-z0-9.\-_]{2,63}$/i.test(v) && v.toLowerCase().includes('gemini')) next[key] = v;
       }
       if (body.plan_prices && typeof body.plan_prices === 'object' && !Array.isArray(body.plan_prices)) {
         const pp: Record<string, { monthly?: number; yearly?: number }> = {};
@@ -6451,7 +6466,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
                   quizData.ai_model === 'gemini-2.5-pro' ||
                   quizData.target_model === 'gemini_pro' ||
                   String(quizData.planId || '').toLowerCase().includes('pro');
-                const submissionModelToUse = isProQuiz ? 'gemini-3.1-pro-preview' : 'gemini-3.8-flash';
+                const submissionModelToUse = isProQuiz ? cfgProModel() : cfgFlashModel();
 
                 // Output Optimization: JSON with mandatory step-by-step breakdown & helpful feedback
                 const gradingPrompt = buildGradingPromptServer({
@@ -6485,10 +6500,10 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
                       });
                       return { text: response.text || '', usageMetadata: response.usageMetadata, modelUsed: submissionModelToUse };
                     } catch (modelErr: any) {
-                      if (submissionModelToUse !== 'gemini-3.8-flash') {
+                      if (submissionModelToUse !== cfgFlashModel()) {
                         console.warn(`[Quiz Submission Essay] ${submissionModelToUse} failed, falling back to flash:`, modelErr?.message);
                         const fallbackResponse = await ai.models.generateContent({
-                          model: 'gemini-3.8-flash',
+                          model: cfgFlashModel(),
                           contents: gradingPrompt,
                           config: {
                             responseMimeType: 'application/json',
@@ -6496,7 +6511,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
                             maxOutputTokens: 600
                           }
                         });
-                        return { text: fallbackResponse.text || '', usageMetadata: fallbackResponse.usageMetadata, modelUsed: 'gemini-3.8-flash' };
+                        return { text: fallbackResponse.text || '', usageMetadata: fallbackResponse.usageMetadata, modelUsed: cfgFlashModel() };
                       }
                       throw modelErr;
                     }

@@ -26,6 +26,9 @@ export default function AdminPricingScreen() {
   const [planPrices, setPlanPrices] = useState<Record<string, { monthly: string; yearly: string }>>({});
   const [currency, setCurrency] = useState('EGP');
   const [currencyLabel, setCurrencyLabel] = useState('ج.م');
+  const [flashModel, setFlashModel] = useState('gemini-3.8-flash');
+  const [proModel, setProModel] = useState('gemini-3.1-pro-preview');
+  const [imageModel, setImageModel] = useState('gemini-3.1-flash-image');
 
   const load = async () => {
     setLoading(true);
@@ -38,6 +41,9 @@ export default function AdminPricingScreen() {
       if (cfg.pro_price_per_million != null) setProPrice(String(cfg.pro_price_per_million));
       if (cfg.currency) setCurrency(String(cfg.currency).toUpperCase());
       if (cfg.currency_label) setCurrencyLabel(String(cfg.currency_label));
+      if (cfg.flash_model) setFlashModel(String(cfg.flash_model));
+      if (cfg.pro_model) setProModel(String(cfg.pro_model));
+      if (cfg.image_model) setImageModel(String(cfg.image_model));
       const pp: Record<string, { monthly: string; yearly: string }> = {};
       for (const p of PLANS) {
         const o = cfg.plan_prices?.[p.id];
@@ -62,6 +68,11 @@ export default function AdminPricingScreen() {
     const fp = num(flashPrice); const pp = num(proPrice);
     if (!fm || !pm) return Alert.alert('قيمة غير صالحة', 'مضاعف التوكنز يجب أن يكون رقماً موجباً.');
     if (!fp || !pp) return Alert.alert('قيمة غير صالحة', 'سعر المليون يجب أن يكون رقماً موجباً.');
+    const modelOk = (s: string) => /^[a-z0-9][a-z0-9.\-_]{2,63}$/i.test(s.trim()) && s.trim().toLowerCase().includes('gemini');
+    const fModel = flashModel.trim(); const pModel = proModel.trim(); const iModel = imageModel.trim();
+    if (!modelOk(fModel) || !modelOk(pModel) || !modelOk(iModel)) {
+      return Alert.alert('قيمة غير صالحة', 'اسم النموذج يجب أن يكون معرّف Gemini صحيحاً (مثل gemini-3.8-flash).');
+    }
     const prices: Record<string, { monthly?: number; yearly?: number }> = {};
     for (const [id, v] of Object.entries(planPrices)) {
       const m = num(v.monthly); const y = num(v.yearly);
@@ -78,8 +89,11 @@ export default function AdminPricingScreen() {
         plan_prices: prices,
         currency,
         currency_label: currencyLabel.trim() || CURRENCIES[currency] || currency,
+        flash_model: fModel,
+        pro_model: pModel,
+        image_model: iModel,
       });
-      Alert.alert('تم الحفظ', 'تم تحديث إعدادات التسعير وهامش الربح.');
+      Alert.alert('تم الحفظ', 'تم تحديث إعدادات التسعير والنماذج.');
     } catch (e: any) {
       Alert.alert('فشل الحفظ', e?.message || 'حاول مرة أخرى.');
     } finally {
@@ -128,6 +142,15 @@ export default function AdminPricingScreen() {
               ))}
             </View>
             <Input label="الرمز المعروض (مثال: ج.م / $ / ر.س)" value={currencyLabel} onChangeText={setCurrencyLabel} />
+          </Card>
+          <Card>
+            <Text style={typography.h3}>🤖 نماذج Gemini</Text>
+            <Text style={[typography.caption, { textAlign: 'right', marginBottom: 8 }]}>
+              معرّفات النماذج المستخدمة في التوليد والتصحيح — غيّرها عند صدور نسخة أحدث دون تحديث التطبيق. تُطبّق على السيرفر خلال دقيقة.
+            </Text>
+            <Input label="نموذج فلاش (التوليد والتصحيح العادي)" value={flashModel} onChangeText={setFlashModel} autoCapitalize="none" autoCorrect={false} />
+            <Input label="نموذج برو (التصحيح المتقدم)" value={proModel} onChangeText={setProModel} autoCapitalize="none" autoCorrect={false} />
+            <Input label="نموذج الصور و OCR" value={imageModel} onChangeText={setImageModel} autoCapitalize="none" autoCorrect={false} />
           </Card>
           <Card>
             <Text style={typography.h3}>💵 سعر المليون توكن ({currencyLabel || 'ج.م'})</Text>
