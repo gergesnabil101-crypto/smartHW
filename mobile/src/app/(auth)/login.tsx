@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import { Screen } from '../../components/Screen';
 import { Input } from '../../components/Input';
@@ -7,6 +7,7 @@ import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { useAuth } from '../../store/AuthContext';
 import { useLang } from '../../i18n';
+import { GOOGLE_SIGNIN_ENABLED, signInWithGoogleAccount } from '../../features/auth/googleAuth';
 import { colors, radius, shadows, typography } from '../../theme';
 
 function friendlyAuthError(code?: string): string {
@@ -34,6 +35,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [joinCode, setJoinCode] = useState('');
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   const joinQuiz = () => {
     const raw = joinCode.trim();
@@ -58,6 +60,26 @@ export default function LoginScreen() {
       router.replace('/(teacher)');
     } catch (e: any) {
       setError(friendlyAuthError(e?.code));
+    }
+  };
+
+  const signInGoogle = async () => {
+    setError('');
+    if (!GOOGLE_SIGNIN_ENABLED) {
+      Alert.alert(
+        'تسجيل الدخول بجوجل',
+        'خيار الدخول بحساب جوجل يعمل على النسخة المثبتة من التطبيق — وليس داخل Expo Go.'
+      );
+      return;
+    }
+    setGoogleLoading(true);
+    try {
+      const r = await signInWithGoogleAccount();
+      if (r === 'ok') router.replace('/(teacher)');
+    } catch (e: any) {
+      setError(e?.message || 'تعذر تسجيل الدخول بحساب جوجل.');
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
@@ -93,6 +115,17 @@ export default function LoginScreen() {
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         <Button title={t('signIn')} onPress={submit} loading={loading} />
+
+        <View style={styles.dividerRow}>
+          <View style={styles.divider} />
+          <Text style={styles.dividerText}>أو</Text>
+          <View style={styles.divider} />
+        </View>
+
+        <Pressable onPress={signInGoogle} disabled={googleLoading} style={({ pressed }) => [styles.googleBtn, (pressed || googleLoading) && { opacity: 0.7 }]}>
+          <Text style={styles.googleG}>G</Text>
+          <Text style={styles.googleText}>{googleLoading ? 'جاري الدخول...' : 'المتابعة بحساب Google'}</Text>
+        </Pressable>
       </Card>
 
       <View style={styles.links}>
@@ -121,4 +154,14 @@ const styles = StyleSheet.create({
   error: { color: colors.danger, textAlign: 'right', writingDirection: 'rtl', marginBottom: 10 },
   links: { alignItems: 'center', gap: 14, marginTop: 20 },
   link: { color: colors.primary, fontSize: 15, fontWeight: '700' },
+  dividerRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 14, gap: 10 },
+  divider: { flex: 1, height: 1, backgroundColor: colors.border },
+  dividerText: { color: colors.textMuted, fontSize: 12, fontWeight: '700' },
+  googleBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+    borderWidth: 1, borderColor: colors.border, borderRadius: radius.md,
+    backgroundColor: '#fff', paddingVertical: 12, minHeight: 48,
+  },
+  googleG: { fontSize: 18, fontWeight: '900', color: '#4285F4' },
+  googleText: { fontSize: 14, fontWeight: '700', color: colors.text },
 });

@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import { Screen } from '../../components/Screen';
 import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
 import { useAuth } from '../../store/AuthContext';
-import { colors, typography } from '../../theme';
+import { GOOGLE_SIGNIN_ENABLED, signInWithGoogleAccount } from '../../features/auth/googleAuth';
+import { colors, radius, typography } from '../../theme';
 
 function validate(email: string, password: string, name: string): string {
   if (!name.trim()) return 'أدخل الاسم الكامل.';
@@ -26,6 +27,24 @@ export default function RegisterScreen() {
   const [phone, setPhone] = useState('');
   const [subject, setSubject] = useState('');
   const [error, setError] = useState('');
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  const signInGoogle = async () => {
+    setError('');
+    if (!GOOGLE_SIGNIN_ENABLED) {
+      Alert.alert('تسجيل الدخول بجوجل', 'خيار الدخول بحساب جوجل يعمل على النسخة المثبتة من التطبيق — وليس داخل Expo Go.');
+      return;
+    }
+    setGoogleLoading(true);
+    try {
+      const r = await signInWithGoogleAccount();
+      if (r === 'ok') router.replace('/(teacher)');
+    } catch (e: any) {
+      setError(e?.message || 'تعذر تسجيل الدخول بحساب جوجل.');
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
 
   const submit = async () => {
     const v = validate(email, password, name);
@@ -59,6 +78,17 @@ export default function RegisterScreen() {
 
       <Button title="إنشاء الحساب" onPress={submit} loading={loading} />
 
+      <View style={styles.dividerRow}>
+        <View style={styles.divider} />
+        <Text style={styles.dividerText}>أو</Text>
+        <View style={styles.divider} />
+      </View>
+
+      <Pressable onPress={signInGoogle} disabled={googleLoading} style={({ pressed }) => [styles.googleBtn, (pressed || googleLoading) && { opacity: 0.7 }]}>
+        <Text style={styles.googleG}>G</Text>
+        <Text style={styles.googleText}>{googleLoading ? 'جاري الدخول...' : 'المتابعة بحساب Google'}</Text>
+      </Pressable>
+
       <Link href="/(auth)/login" style={styles.link}>لديك حساب بالفعل؟ سجل الدخول</Link>
     </Screen>
   );
@@ -68,4 +98,14 @@ const styles = StyleSheet.create({
   title: { textAlign: 'center', marginVertical: 30 },
   error: { color: colors.danger, textAlign: 'right', writingDirection: 'rtl', marginBottom: 10 },
   link: { color: colors.primary, fontSize: 15, fontWeight: '600', textAlign: 'center', marginTop: 24 },
+  dividerRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 14, gap: 10 },
+  divider: { flex: 1, height: 1, backgroundColor: colors.border },
+  dividerText: { color: colors.textMuted, fontSize: 12, fontWeight: '700' },
+  googleBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+    borderWidth: 1, borderColor: colors.border, borderRadius: radius.md,
+    backgroundColor: '#fff', paddingVertical: 12, minHeight: 48,
+  },
+  googleG: { fontSize: 18, fontWeight: '900', color: '#4285F4' },
+  googleText: { fontSize: 14, fontWeight: '700', color: colors.text },
 });
