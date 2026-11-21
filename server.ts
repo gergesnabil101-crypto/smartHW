@@ -4126,7 +4126,23 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
 
           if (uId) {
             const existing = usersMap.get(uId) || (uEmail && usersMap.get(uEmail));
-            usersMap.set(uId, existing ? { ...existing, ...uData } : uData);
+            if (existing) {
+              const merged = { ...existing, ...uData };
+              // Self-heal: the removed end-date clamp truncated some end dates in
+              // Firestore while the JSON copy kept the true value — restore the
+              // later of the two and write it back once.
+              const jsonEnd = Date.parse(existing.subscription_end_date || '');
+              const fsEnd = Date.parse(uData.subscription_end_date || '');
+              if (jsonEnd > fsEnd && existing.subscription_end_date) {
+                merged.subscription_end_date = existing.subscription_end_date;
+                adminDb.collection('users').doc(uId)
+                  .set({ subscription_end_date: existing.subscription_end_date }, { merge: true })
+                  .catch(() => {});
+              }
+              usersMap.set(uId, merged);
+            } else {
+              usersMap.set(uId, uData);
+            }
           }
           if (uEmail) {
             usersMap.set(uEmail, usersMap.get(uId) || uData);
@@ -4417,27 +4433,13 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
       // users who made no AI calls today (stale counter must display as 0).
       if (u.last_token_reset_date !== todayStr) u.tokens_used_today = 0;
 
-      // Normalize: a subscription period must never exceed its billing cycle
-      // length — repairs end dates inflated by the old renewal-stacking bug.
-      // An explicit subscription_duration_days (set by manual activation for
-      // 60/90/180/365-day plans) takes precedence over the cycle guess.
+      // Remaining days are always derived from subscription_end_date as stored —
+      // the old cycle-length clamp was removed: it truncated legitimate custom
+      // durations (60/90/180-day activations) and wrote the damage back to
+      // Firestore. Renewal stacking is prevented at write time instead (renewals
+      // always start a fresh period from today, never stack on old end dates).
       const uIsAdmin = u.role === 'admin' || u.admin === true || uEmail === 'gergesnabil101@gmail.com';
       if (uIsAdmin) { u.role = 'admin'; u.admin = true; }
-      if (!uIsAdmin && u.subscription_end_date) {
-        const end = new Date(u.subscription_end_date).getTime();
-        const explicitDays = Number(u.subscription_duration_days) > 0 ? Number(u.subscription_duration_days) : null;
-        const cycleDays = u.billing_cycle === 'yearly' ? 365
-          : (u.subscription_status === 'trial' || u.subscription_status === 'pending_approval' ? 5 : (explicitDays || 30));
-        const maxEnd = now.getTime() + cycleDays * 24 * 60 * 60 * 1000;
-        if (end > maxEnd) {
-          const clamped = new Date(maxEnd).toISOString();
-          u.subscription_end_date = clamped;
-          const docId = u.id || u.uid;
-          if (docId) {
-            adminDb.collection('users').doc(docId).set({ subscription_end_date: clamped }, { merge: true }).catch(() => {});
-          }
-        }
-      }
 
       deduplicatedUsers.push(u);
     });
