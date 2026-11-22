@@ -14,7 +14,13 @@ import { api } from '../../lib/api';
 const WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
 
 export const GOOGLE_SIGNIN_ENABLED =
-  !!WEB_CLIENT_ID && Constants.appOwnership !== 'expo' && Constants.executionEnvironment !== 'storeClient';
+  !!WEB_CLIENT_ID &&
+  // Enabled only when executionEnvironment is present and known to be a real
+  // native build — if the constant is missing (older/newer Expo Go), stay off
+  // rather than crash on a missing native module.
+  Constants.executionEnvironment != null &&
+  Constants.executionEnvironment !== 'storeClient' &&
+  Constants.appOwnership !== 'expo';
 
 let configured = false;
 

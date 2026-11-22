@@ -22,7 +22,12 @@ const MAX_RECEIPT_CHARS = 2_900_000;
 const PAYMENTS_MODE = (Constants.expoConfig?.extra as any)?.paymentsMode === 'manual' ? 'manual' : 'iap';
 // expo-iap's native module doesn't exist inside Expo Go — mounting useIAP there
 // only produces a console error, so the bridge component is skipped entirely.
-const IAP_AVAILABLE = PAYMENTS_MODE === 'iap' && Constants.executionEnvironment !== 'storeClient' && Constants.appOwnership !== 'expo';
+// Require a known executionEnvironment: if the constant is missing, stay off.
+const IAP_AVAILABLE =
+  PAYMENTS_MODE === 'iap' &&
+  Constants.executionEnvironment != null &&
+  Constants.executionEnvironment !== 'storeClient' &&
+  Constants.appOwnership !== 'expo';
 
 // Google Play SKUs are fixed products — when paying via the store the millions
 // counter can only pick sizes that exist as Play subscriptions.
@@ -157,7 +162,7 @@ export default function SubscriptionScreen() {
 
   const stepM = (g: 'tokens' | 'pro_tokens', dir: 1 | -1) => {
     const m = millions[g] || 1;
-    if (PAYMENTS_MODE === 'iap') {
+    if (IAP_AVAILABLE) {
       // Snap to the sizes that actually exist as Play store products.
       const i = IAP_SIZES.indexOf(m);
       setM(g, IAP_SIZES[Math.min(IAP_SIZES.length - 1, Math.max(0, i + dir))]);
@@ -188,7 +193,7 @@ export default function SubscriptionScreen() {
 
   // IAP can only purchase sizes that exist as Play products.
   const iapBuyable = (p: PlanOption | null) =>
-    PAYMENTS_MODE !== 'iap' || IAP_SIZES.includes(Number(((p?.id.match(/(\d+)M/) || [])[1]) || 0));
+    !IAP_AVAILABLE || IAP_SIZES.includes(Number(((p?.id.match(/(\d+)M/) || [])[1]) || 0));
 
 
   const MILLION = 1_000_000;
@@ -344,7 +349,7 @@ export default function SubscriptionScreen() {
         ))}
       </View>
 
-      {PAYMENTS_MODE === 'manual' && !isPro && profile?.hasAccess !== false ? (
+      {!IAP_AVAILABLE && !isPro && profile?.hasAccess !== false ? (
         <Card style={styles.upgradeCard}>
           <Text style={styles.upgradeTitle}>👑 ترقية إلى نظام برو (Gemini Pro)</Text>
           <Text style={styles.upgradeLine}>
@@ -412,7 +417,7 @@ export default function SubscriptionScreen() {
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>سعر الدفع</Text>
               <Text style={styles.totalValue}>
-                {PAYMENTS_MODE === 'iap' && buyable && playPrice(plan)
+                {IAP_AVAILABLE && buyable && playPrice(plan)
                   ? playPrice(plan)
                   : `${total.toLocaleString('en')} ${cur}`}
                 {' / '}{cycle === 'monthly' ? 'شهر' : 'سنة'}
@@ -456,7 +461,7 @@ export default function SubscriptionScreen() {
               {selected?.features.map((f, i) => (
                 <Text key={i} style={styles.feature}>• {f}</Text>
               ))}
-              {PAYMENTS_MODE === 'iap' ? (
+              {IAP_AVAILABLE ? (
                 <>
                   <Text style={styles.payHint}>
                     الدفع يتم بأمان عبر Google Play بعملتك المحلية ووسيلة الدفع المسجلة لديك — يتجدد شهرياً ويمكن إلغاؤه من إعدادات متجر Play في أي وقت.
@@ -535,9 +540,9 @@ const styles = StyleSheet.create({
   },
   stepText: { fontSize: 20, fontWeight: '900', color: colors.primary, lineHeight: 24 },
   millionsInput: {
-    minWidth: 56, height: 40, borderRadius: radius.md, borderWidth: 2, borderColor: colors.primary,
-    backgroundColor: colors.surface, textAlign: 'center', fontSize: 18, fontWeight: '900', color: colors.text,
-    paddingHorizontal: 6,
+    minWidth: 64, height: 40, borderRadius: radius.md, borderWidth: 2, borderColor: colors.primary,
+    backgroundColor: colors.surface, textAlign: 'center', fontSize: 15, fontWeight: '800', color: colors.text,
+    paddingHorizontal: 8, paddingVertical: 0,
   },
   totalRow: {
     flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between',

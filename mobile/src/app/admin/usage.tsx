@@ -49,7 +49,9 @@ export default function AdminUsageScreen() {
     try {
       const dayStart = new Date();
       dayStart.setHours(0, 0, 0, 0);
-      const q = query(collection(db, 'token_usage_logs'), where('timestamp', '>=', dayStart), orderBy('timestamp', 'desc'));
+      // token_usage_logs stores timestamp as an ISO string — compare with an ISO
+      // string, not a Date, or the range filter matches nothing.
+      const q = query(collection(db, 'token_usage_logs'), where('timestamp', '>=', dayStart.toISOString()), orderBy('timestamp', 'desc'));
       const snap = await getDocs(q);
 
       let planById: Record<string, string> = {};
