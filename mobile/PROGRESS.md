@@ -1,4 +1,20 @@
-# نقطة استئناف المشروع — 2026-11-21
+# نقطة استئناف المشروع — 2026-11-22
+
+## ✅ دفعة 2026-11-22 — إصلاحات Expo Go + كشف سبب خطأ الباقات
+
+- **فونت عداد الملايين**: 18→15 + خانة أوسع (`minWidth:64`) + `paddingVertical:0`
+- **سبب «خطأ الباقات» اتكشف**: `paymentsMode:'iap'` في app.json كان بيعرض زر «اشترك عبر Google Play» ميّت في Expo Go → Alert «المتجر غير متصل». دلوقتي في Expo Go بتظهر **واجهة الإيصال اليدوية** (كل `PAYMENTS_MODE==='iap'` للعرض اتبدلت بـ `IAP_AVAILABLE`)
+- **استهلاك اليوم كان فاضي دايماً**: `token_usage_logs.timestamp` متخزّن **ISO string** وكان الاستعلام بيقارنه بـ Date → نوعين مختلفين = صفر نتيجة. اتصلح لـ `dayStart.toISOString()` في `admin/usage.tsx`
+- **بوابات Expo Go اتشدّدت**: `GOOGLE_SIGNIN_ENABLED` + `IAP_AVAILABLE` بقوا يشترطوا `executionEnvironment != null` — لو الثوابت رجّعت undefined مش هيكراشوا على موديولات مفقودة
+- تنبيه «يعمل على النسخة المثبتة» عند ضغط زر جوجل في Expo Go **متعمّد** — الدخول الحقيقي محتاج dev build
+
+### 📌 بكره — النسخة المثبتة (APK) بدل Expo Go:
+
+- المستخدم عايز APK حقيقي على جهازه — Expo Go مابيفتحش
+- `eas.json` جاهز: `development` → `buildType:apk` + `preview` → `buildType:apk`
+- `npx eas-cli` بيتحمّل لأول مرة (بطيء جداً على الجهاز — ٢٧.١١.٠)
+- **الخطوة المملوكة للمستخدم**: حساب Expo — الأسهل توكن من `expo.dev/settings/access-tokens` → نبني بـ `EXPO_TOKEN` من غير login تفاعلي
+- بعد الـ build: `eas credentials` → أجيب SHA-1 → أسجّله في Firebase عبر Management API → دخول جوجل يشتغل + IAP حقيقي
 
 ## ✅ دفعة 2026-11-21 — إزالة clamp الأيام المتبقية + نماذج Gemini اتنشرت
 
