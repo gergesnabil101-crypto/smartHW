@@ -1,4 +1,16 @@
-# نقطة استئناف المشروع — 2026-11-22
+# نقطة استئناف المشروع — 2026-11-23
+
+## ⏳ بناية preview APK شغالة على EAS (الجهاز اتقفل)
+
+- المشروع اتربط: `smart-homework-grader` @ `gergesnabil101` — projectId `629e3471-3c32-49ee-ade2-20df3144bfaf` (اتكتب في app.json — **مش مرفوع لـ git لسه**)
+- **Build ID: `7f0846c3-fd77-4340-bb22-e29f3d20ffc9`** — https://expo.dev/accounts/gergesnabil101/projects/smart-homework-grader/builds/7f0846c3-fd77-4340-bb22-e29f3d20ffc9
+- keystore اتولّد في السحابة — بعد البناء: `eas credentials` → أجيب SHA-1 → أسجّله في Firebase Android app عبر Management API → جوجل ساين-إن يشتغل
+- `EXPO_TOKEN` محفوظ في جلسة الشغل — **مش مكتوب في أي ملف** — المستخدم يقدر يمسحه من expo.dev لو حابب
+- لو البناية نجحت: APK لينك تحميل مباشر من صفحة البناية → المستخدم يثبّته على جهازه
+- ملاحظة: `development` profile محتاج `expo-dev-client` — استخدمنا `preview` (نفس نتيجة الإنتاج، أبسط)
+- كمان: eas-cli مش متسطّب محلياً — npx بيحمّله كل مرة (بطيء ~15 دقيقة) — يستاهل `npm i -g eas-cli` أول جلسة
+
+## ✅ دفعة 2026-11-22 — إصلاحات Expo Go + كشف سبب خطأ الباقات
 
 ## ✅ دفعة 2026-11-22 — إصلاحات Expo Go + كشف سبب خطأ الباقات
 

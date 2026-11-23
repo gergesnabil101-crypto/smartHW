@@ -21,7 +21,11 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "permissions": [
-        "INTERNET"
+        "android.permission.INTERNET",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
       ],
       "blockedPermissions": [
         "android.permission.RECORD_AUDIO",
@@ -53,10 +57,18 @@
     "extra": {
       "apiBaseUrl": "https://mosahah-api-609470896445.europe-west1.run.app",
       "paymentsMode": "iap",
-      "router": {}
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "629e3471-3c32-49ee-ade2-20df3144bfaf"
+      }
     },
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "owner": "gergesnabil101"
   }
 }
