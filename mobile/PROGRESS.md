@@ -1,6 +1,34 @@
-# نقطة استئناف المشروع — 2026-11-23
+# نقطة استئناف المشروع — 2026-11-24
 
-## ⏳ بناية preview APK شغالة على EAS (الجهاز اتقفل)
+## 🚀 الحالة الحالية
+
+- **السيرفر منشور**: revision `mosahah-api-00015-9qx` — فيه كل إصلاحات اليوم
+- **بناية AAB إنتاج شغالة على EAS**: `b0f47364-9d7e-4f4c-a336-130e5e8448db` — https://expo.dev/accounts/gergesnabil101/projects/smart-homework-grader/builds/b0f47364-9d7e-4f4c-a336-130e5e8448db (versionCode 4 — المحاولة الثالثة، الأولى فشلت على fingerprint DNS — الحل: `EAS_SKIP_AUTO_FINGERPRINT=1`)
+- **معاينة APK السابقة جاهزة للتحميل**: https://expo.dev/artifacts/eas/07y5gDpKlwowVccXzpJFTnp1iLhKM_l6_SYxYicYeqI.apk (تسجيل دخول expo.dev مطلوب)
+- **آخر commit**: `2e6a346` — إصلاحات عدادات الأدمن + أخطاء الاستخراج + قراءة PDF
+
+## ✅ دفعة 2026-11-24 — دفعة الإصلاحات السبعة (منشورة)
+
+- **عداد التجريبيين = 9 وهمي**: العميل كان بيحط كل حد مش active في "trial" — دلوقتي `categoryOf` نسخة من منطق السيرفر: تجريبي فقط داخل نافذة 5 أيام (`trial_extended_until || created_at+5d`) أو طلب معلق — المنتهي بيروح "مغلق"
+- **الأيام المتبقية**: الـ self-heal اتقيّد بـ `subscription_duration_days` (أو 370 يوم لما مفيش) — مبقاش يرجّع تواريخ منتفخة/قديمة من الـ JSON فوق تفعيل جديد صحيح + `subscription_start_date` بيتحفظ دلوقتي في التفعيل اليدوي وفي sync payload
+- **«مفتاح API غير صالح» الزائف**: `handleAiError` + الفحص الداخلي كانوا بيحوّلوا **أي** خطأ 400 لرسالة المفتاح — الخطأ الحقيقي (payload/model/schema) بقى يظهر بنصه الفعلي
+- **«تعذر قراءة الملف» للـ PDF**: `DocumentPicker base64:true` كان بيفشل بصمت على الملفات الكبيرة — القراءة بقت عبر `expo-file-system/legacy` `readAsStringAsync`
+- **تحديد صفحات PDF**: حقلين «من صفحة / إلى صفحة» يظهروا للـ PDF — بتتحقق + تعليمة صفحات بتتضاف للـ prompt
+- **زر 📋 طلبات المكرر**: اتشال من toolbar أداة المستخدمين (موجود في profile.tsx أصلاً)
+- **استهلاك اليوم**: الإصلاح كان في `91c8324` أصلاً — الـ APK القديم ماكانش فيه — البناية الجديدة فيه. **لو لسه فاضي على النسخة الجديدة**: غالباً قواعد `token_usage_logs` مش منشورة — `firebase deploy --only firestore:rules`
+
+## 📌 خطوات المستخدم المعلقة
+
+1. **Play Console**: إنشاء التطبيق `مصحح الواجبات الذكي` (عربي / App / Free) — قولي لما يتعمل
+2. **Firebase SHA-1**: لو متعملش — console.firebase.google.com → `gen-lang-client-0552360485` → Android `com.gergesnabil.mosahah` → Add fingerprint: `3ae068d65e9d6b4bb5841574aabf1a7c75c3327d`
+
+## ✅ دفعة 2026-11-23 — مشروع EAS اتربط + بناية preview
+
+- المشروع اتربط: `smart-homework-grader` @ `gergesnabil101` — projectId `629e3471-3c32-49ee-ade2-20df3144bfaf`
+- **Build preview خلص**: `7f0846c3-fd77-4340-bb22-e29f3d20ffc9` — APK في الأعلى
+- keystore في السحابة: SHA-1 `3ae068d65e9d6b4bb5841574aabf1a7c75c3327d` / SHA-256 `57cb0f5c820e608f5f25198a3aa3a1555f3468643d8da9b2d9eb60f3ec9d7943`
+- `development` profile محتاج `expo-dev-client` (مش متسطّب) — `preview` بيدي نفس APK الإنتاج
+- eas-cli بيتحمّل كل مرة عبر npx (~٢٥ دقيقة على الجهاز) — يستاهل `npm i -g eas-cli`
 
 - المشروع اتربط: `smart-homework-grader` @ `gergesnabil101` — projectId `629e3471-3c32-49ee-ade2-20df3144bfaf` (اتكتب في app.json — **مش مرفوع لـ git لسه**)
 - **Build ID: `7f0846c3-fd77-4340-bb22-e29f3d20ffc9`** — https://expo.dev/accounts/gergesnabil101/projects/smart-homework-grader/builds/7f0846c3-fd77-4340-bb22-e29f3d20ffc9
