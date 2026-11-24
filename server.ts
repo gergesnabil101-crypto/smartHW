@@ -157,6 +157,7 @@ async function preserveAndMigrateSQLite() {
             avatar_data: u.avatar_data || '',
             role: u.role || 'user',
             subscription_type: u.subscription_type || '200',
+            subscription_start_date: u.subscription_start_date || null,
             subscription_end_date: u.subscription_end_date || null,
             subscription_status: u.role === 'admin' ? 'active' : 'trial',
             is_suspended: false,
@@ -297,12 +298,10 @@ function getGeminiClient(overrideKey?: string): GoogleGenAI {
 
 function handleAiError(res: any, err: any, fallbackMessage: string = 'حدث خطأ أثناء معالجة الطلب بواسطة الذكاء الاصطناعي') {
   const errStr = (err?.message || '') + ' ' + (typeof err === 'object' ? JSON.stringify(err) : String(err));
-  const isInvalidKey = errStr.includes('API_KEY_INVALID') || 
-                       errStr.includes('API key not valid') || 
-                       errStr.includes('INVALID_ARGUMENT') ||
+  const isInvalidKey = errStr.includes('API_KEY_INVALID') ||
+                       /api key not valid|invalid api key|api key.*expired|key.*expired/i.test(errStr) ||
                        errStr.includes('مفتاح الذكاء الاصطناعي') ||
-                       errStr.includes('GEMINI_API_KEY') ||
-                       err?.status === 400 || err?.statusCode === 400 || err?.error?.code === 400;
+                       (errStr.includes('GEMINI_API_KEY') && errStr.includes('invalid'));
 
   const is429 = err?.status === 429 || err?.statusCode === 429 || errStr.includes('429') || errStr.toLowerCase().includes('quota') || errStr.toLowerCase().includes('rate limit');
 
@@ -1653,7 +1652,7 @@ async function startServer() {
             };
           } catch (primaryErr: any) {
             const errStr = String(primaryErr?.message || primaryErr || '');
-            const isInvalidKey = errStr.includes('API_KEY_INVALID') || errStr.includes('API key not valid') || primaryErr?.status === 400;
+            const isInvalidKey = errStr.includes('API_KEY_INVALID') || /api key not valid|invalid api key|api key.*expired/i.test(errStr);
             
             if (isInvalidKey) {
               throw new Error('مفتاح الذكاء الاصطناعي (GEMINI_API_KEY) غير صالح أو منتهي الصلاحية. يرجى التحقق من المفتاح في إعدادات المنصة (Settings -> Secrets).');
@@ -4130,10 +4129,14 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
               const merged = { ...existing, ...uData };
               // Self-heal: the removed end-date clamp truncated some end dates in
               // Firestore while the JSON copy kept the true value — restore the
-              // later of the two and write it back once.
+              // later of the two and write it back once. Bounded so a stale or
+              // bug-inflated JSON date can never push the end date beyond the
+              // recorded subscription duration (or ~1 year when none exists).
               const jsonEnd = Date.parse(existing.subscription_end_date || '');
               const fsEnd = Date.parse(uData.subscription_end_date || '');
-              if (jsonEnd > fsEnd && existing.subscription_end_date) {
+              const durationDays = Number(uData.subscription_duration_days || existing.subscription_duration_days) || 0;
+              const healCap = Date.now() + (durationDays > 0 ? durationDays + 1 : 370) * 86400000;
+              if (jsonEnd > fsEnd && jsonEnd <= healCap && existing.subscription_end_date) {
                 merged.subscription_end_date = existing.subscription_end_date;
                 adminDb.collection('users').doc(uId)
                   .set({ subscription_end_date: existing.subscription_end_date }, { merge: true })
@@ -4464,6 +4467,7 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
             avatar_data: u.avatar_data || '',
             role: uEmail === 'gergesnabil101@gmail.com' ? 'admin' : (u.role || 'user'),
             subscription_type: u.subscription_type || '200',
+            subscription_start_date: u.subscription_start_date || null,
             subscription_end_date: u.subscription_end_date || null,
             subscription_status: u.subscription_status || 'trial',
             is_suspended: !!u.is_suspended,

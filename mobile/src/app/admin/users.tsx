@@ -29,6 +29,8 @@ interface AdminUser {
   remaining_tokens?: number;
   custom_tokens_millions?: number;
   subscription_end_date?: string;
+  trial_extended_until?: string;
+  isPendingRequestOnly?: boolean;
   created_at?: string;
 }
 
@@ -80,11 +82,29 @@ export default function AdminUsersScreen() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Mirrors the server's triage in auditAndSyncAllPlatformUsersServer: a trial
+  // account only counts while inside its 5-day window (created_at + 5d, or
+  // trial_extended_until) — expired trials fall to closed, not trial.
+  const TRIAL_DAYS = 5;
+  const trialEndOf = (u: AdminUser): Date | null => {
+    if (u.trial_extended_until) {
+      const ext = new Date(u.trial_extended_until);
+      if (!isNaN(ext.getTime())) return ext;
+    }
+    const c = u.created_at ? new Date(u.created_at) : null;
+    return c && !isNaN(c.getTime()) ? new Date(c.getTime() + TRIAL_DAYS * DAY_MS) : null;
+  };
   const categoryOf = (u: AdminUser): 'trial' | 'active' | 'closed' => {
-    if (u.is_suspended || isExpired(u)) return 'closed';
+    if (u.is_suspended) return 'closed';
     const s = (u.subscription_status || '').toLowerCase();
-    if (s === 'active' || s === 'admin' || u.admin === true || u.role === 'admin') return 'active';
-    return 'trial'; // trial / pending / empty
+    if (s === 'inactive' || s === 'cancelled' || s === 'expired') return 'closed';
+    if (s === 'admin' || u.admin === true || u.role === 'admin') return 'active';
+    const end = endDateOf(u);
+    if (s === 'active' || (end && end.getTime() >= Date.now())) return 'active';
+    if (u.isPendingRequestOnly || s === 'pending' || s === 'pending_approval') return 'trial';
+    const tEnd = trialEndOf(u);
+    if (!tEnd || Date.now() <= tEnd.getTime()) return 'trial';
+    return 'closed';
   };
 
   const counts = useMemo(() => {
@@ -148,6 +168,7 @@ export default function AdminUsersScreen() {
         subscription_type: planId,
         billing_cycle: actDays >= 365 ? 'yearly' : 'monthly',
         subscription_duration_days: actDays,
+        subscription_start_date: new Date().toISOString(),
         subscription_end_date: new Date(Date.now() + actDays * 86400000).toISOString(),
         custom_tokens_millions: actMillions,
         preferred_ai_model: actModel === 'pro' ? 'gemini_pro' : 'gemini_flash',
@@ -256,9 +277,6 @@ export default function AdminUsersScreen() {
         <View style={styles.headRow}>
           <Text style={typography.caption}>{filtered.length} مستخدم</Text>
           <View style={{ flexDirection: 'row-reverse', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end', flexShrink: 1, maxWidth: '78%' }}>
-            <Pressable onPress={() => router.push('/admin/requests')} style={styles.actionChip}>
-              <Text style={[styles.actionText, { color: colors.warning }]}>📋 طلبات</Text>
-            </Pressable>
             <Pressable onPress={() => router.push('/admin/notifications')} style={styles.actionChip}>
               <Text style={[styles.actionText, { color: colors.warning }]}>🔔 إشعارات</Text>
             </Pressable>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
@@ -99,6 +100,8 @@ export function AiGenerateSheet({ subject, onQuestions, onClose }: Props) {
   const [count, setCount] = useState('5');
   const [essayCount, setEssayCount] = useState('0');
   const [file, setFile] = useState<PickedFile | null>(null);
+  const [pageFrom, setPageFrom] = useState('');
+  const [pageTo, setPageTo] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -141,17 +144,29 @@ export function AiGenerateSheet({ subject, onQuestions, onClose }: Props) {
 
   const pickDocument = async () => {
     setError('');
+    // base64 is NOT requested from the picker: it loads the whole file into
+    // memory and silently returns undefined on large PDFs. Read via
+    // expo-file-system instead — same result, works for big files.
     const res = await DocumentPicker.getDocumentAsync({
       type: ['application/pdf', 'image/*', 'text/plain',
         'application/msword',
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
       copyToCacheDirectory: true,
-      base64: true,
     });
     if (res.canceled || !res.assets?.[0]) return;
     const a = res.assets[0];
-    if (!a.base64) return setError('تعذر قراءة الملف. جرب ملفاً أصغر.');
-    setFile({ name: a.name || 'file', mimeType: a.mimeType || 'application/pdf', base64: a.base64 });
+    let base64 = a.base64 || '';
+    if (!base64 && a.uri) {
+      try {
+        base64 = await FileSystem.readAsStringAsync(a.uri, { encoding: 'base64' });
+      } catch {
+        base64 = '';
+      }
+    }
+    if (!base64) return setError('تعذر قراءة الملف. جرب ملفاً أصغر.');
+    setPageFrom('');
+    setPageTo('');
+    setFile({ name: a.name || 'file', mimeType: a.mimeType || 'application/pdf', base64 });
   };
 
   const pickImage = async () => {
@@ -163,15 +178,26 @@ export function AiGenerateSheet({ subject, onQuestions, onClose }: Props) {
     setFile({ name: a.fileName || 'image.jpg', mimeType: a.mimeType || 'image/jpeg', base64: a.base64 });
   };
 
+  const isPdfFile = !!file && (file.mimeType === 'application/pdf' || /\.pdf$/i.test(file.name));
+
   const extract = async () => {
     if (!file) return setError('اختر ملفاً أو صورة أولاً.');
+    const from = Math.max(0, parseInt(pageFrom) || 0);
+    const to = Math.max(0, parseInt(pageTo) || 0);
+    if (isPdfFile && from > 0 && to > 0 && to < from) {
+      return setError('نطاق الصفحات غير صحيح: "إلى" يجب أن تكون أكبر من "من".');
+    }
     setBusy(true);
     setError('');
     try {
+      let prompt = EXTRACTION_INSTRUCTIONS;
+      if (isPdfFile && (from > 0 || to > 0)) {
+        prompt += `\n\nمهم جداً: هذا مستند متعدد الصفحات — اقرأ واستخرج الأسئلة من الصفحة ${from || 1} إلى الصفحة ${to || 'الأخيرة'} فقط، وتجاهل كل ما عداها تماماً.`;
+      }
       const res = await aiGenerate<{ text?: string }>({
         contents: { parts: [
           { inlineData: { mimeType: file.mimeType, data: file.base64 } },
-          { text: EXTRACTION_INSTRUCTIONS },
+          { text: prompt },
         ] },
         operation: 'extract_questions',
         ...aiMeta,
@@ -230,6 +256,16 @@ export function AiGenerateSheet({ subject, onQuestions, onClose }: Props) {
             <View style={styles.fileBox}>
               <Text style={typography.body} numberOfLines={1}>📎 {file.name}</Text>
               <Pressable onPress={() => setFile(null)}><Text style={styles.removeFile}>إزالة</Text></Pressable>
+            </View>
+          ) : null}
+          {isPdfFile ? (
+            <View style={styles.row}>
+              <View style={{ flex: 1 }}>
+                <Input label="من صفحة (اختياري)" value={pageFrom} onChangeText={setPageFrom} keyboardType="numeric" placeholder="1" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Input label="إلى صفحة (اختياري)" value={pageTo} onChangeText={setPageTo} keyboardType="numeric" placeholder="الأخيرة" />
+              </View>
             </View>
           ) : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
