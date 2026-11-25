@@ -26,3 +26,4 @@ mobile/android/app/release//nul
 nul
 __pycache__/
 data/
+_*.cjs
