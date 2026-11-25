@@ -100,7 +100,8 @@ export default function AdminUsersScreen() {
     if (s === 'inactive' || s === 'cancelled' || s === 'expired') return 'closed';
     if (s === 'admin' || u.admin === true || u.role === 'admin') return 'active';
     const end = endDateOf(u);
-    if (s === 'active' || (end && end.getTime() >= Date.now())) return 'active';
+    // A recorded end date in the past means expired even if status still says 'active'.
+    if ((end && end.getTime() >= Date.now()) || (s === 'active' && !end)) return 'active';
     if (u.isPendingRequestOnly || s === 'pending' || s === 'pending_approval') return 'trial';
     const tEnd = trialEndOf(u);
     if (!tEnd || Date.now() <= tEnd.getTime()) return 'trial';

@@ -4127,19 +4127,25 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
             const existing = usersMap.get(uId) || (uEmail && usersMap.get(uEmail));
             if (existing) {
               const merged = { ...existing, ...uData };
-              // Self-heal: the removed end-date clamp truncated some end dates in
-              // Firestore while the JSON copy kept the true value — restore the
-              // later of the two and write it back once. Bounded so a stale or
-              // bug-inflated JSON date can never push the end date beyond the
-              // recorded subscription duration (or ~1 year when none exists).
-              const jsonEnd = Date.parse(existing.subscription_end_date || '');
-              const fsEnd = Date.parse(uData.subscription_end_date || '');
-              const durationDays = Number(uData.subscription_duration_days || existing.subscription_duration_days) || 0;
-              const healCap = Date.now() + (durationDays > 0 ? durationDays + 1 : 370) * 86400000;
-              if (jsonEnd > fsEnd && jsonEnd <= healCap && existing.subscription_end_date) {
-                merged.subscription_end_date = existing.subscription_end_date;
+              // Self-heal (one-shot): the removed end-date clamp truncated some
+              // end dates in Firestore while the JSON copy kept the true value —
+              // restore the later of the two and write it back ONCE per user.
+              // The end_date_healed flag makes this a single migration pass:
+              // without it, a stale JSON snapshot baked into the image (or any
+              // older JSON record) would keep resurrecting inflated end dates
+              // over correct Firestore values on every audit/deploy.
+              if (!uData.end_date_healed) {
+                const jsonEnd = Date.parse(existing.subscription_end_date || '');
+                const fsEnd = Date.parse(uData.subscription_end_date || '');
+                const durationDays = Number(uData.subscription_duration_days || existing.subscription_duration_days) || 0;
+                const healCap = Date.now() + (durationDays > 0 ? durationDays + 1 : 370) * 86400000;
+                const healWrite: any = { end_date_healed: true };
+                if (jsonEnd > fsEnd && jsonEnd <= healCap && existing.subscription_end_date) {
+                  merged.subscription_end_date = existing.subscription_end_date;
+                  healWrite.subscription_end_date = existing.subscription_end_date;
+                }
                 adminDb.collection('users').doc(uId)
-                  .set({ subscription_end_date: existing.subscription_end_date }, { merge: true })
+                  .set(healWrite, { merge: true })
                   .catch(() => {});
               }
               usersMap.set(uId, merged);
@@ -4513,13 +4519,19 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
     const trialList = deduplicatedUsers.filter(u => {
       const c = parseSafeDateServer(u.created_at || u.createdAt, now);
       const trialEnd = u.trial_extended_until ? parseSafeDateServer(u.trial_extended_until) : new Date(c.getTime() + TRIAL_DAYS_SERVER * 24 * 60 * 60 * 1000);
-      const isPaid = u.subscription_status === 'active' || (u.subscription_end_date && new Date(u.subscription_end_date).getTime() >= now.getTime());
+      // A recorded end date already in the past means expired — even when the
+      // status field was never flipped from 'active'.
+      const endMs = u.subscription_end_date ? new Date(u.subscription_end_date).getTime() : NaN;
+      const isPaid = (!isNaN(endMs) && endMs >= now.getTime()) || (u.subscription_status === 'active' && isNaN(endMs));
       return !isPaid && !u.is_suspended && (now <= trialEnd || u.isPendingRequestOnly || u.subscription_status === 'pending_approval');
     });
 
     const activeList = deduplicatedUsers.filter(u => {
       if (u.is_suspended || u.subscription_status === 'inactive' || u.subscription_status === 'cancelled' || u.subscription_status === 'expired') return false;
-      const isPaid = u.subscription_status === 'active' || (u.subscription_end_date && new Date(u.subscription_end_date).getTime() >= now.getTime());
+      // A recorded end date already in the past means expired — even when the
+      // status field was never flipped from 'active'.
+      const endMs = u.subscription_end_date ? new Date(u.subscription_end_date).getTime() : NaN;
+      const isPaid = (!isNaN(endMs) && endMs >= now.getTime()) || (u.subscription_status === 'active' && isNaN(endMs));
       return isPaid || u.role === 'admin' || (u.email && u.email.toLowerCase().trim() === 'gergesnabil101@gmail.com');
     });
 
@@ -5498,6 +5510,8 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
           subscription_status: 'active',
           subscription_type: plan,
           billing_cycle: cycle,
+          subscription_start_date: new Date().toISOString(),
+          subscription_duration_days: days,
           subscription_end_date: endDate.toISOString(),
           is_suspended: false,
           hasAccess: true,

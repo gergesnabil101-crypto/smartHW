@@ -11,3 +11,4 @@ app.db
 *.sqlite
 sqlite_backup_archive.json
 mobile/dist-test
+data/

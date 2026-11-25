@@ -25,3 +25,4 @@ mobile/android/app/debug/
 mobile/android/app/release//nul
 nul
 __pycache__/
+data/
