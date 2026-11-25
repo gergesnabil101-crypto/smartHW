@@ -26,7 +26,6 @@ COPY --from=build /app/dist ./dist
 COPY server.ts ./
 COPY server ./server
 COPY firebase-applet-config.json ./
-COPY data ./data
 
 EXPOSE 8080
 CMD ["npx", "tsx", "server.ts"]
