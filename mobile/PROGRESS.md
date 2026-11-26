@@ -1,11 +1,39 @@
-# نقطة استئناف المشروع — 2026-11-24
+# نقطة استئناف المشروع — 2026-11-25
 
 ## 🚀 الحالة الحالية
 
-- **السيرفر منشور**: revision `mosahah-api-00015-9qx` — فيه كل إصلاحات اليوم
-- **بناية AAB إنتاج شغالة على EAS**: `b0f47364-9d7e-4f4c-a336-130e5e8448db` — https://expo.dev/accounts/gergesnabil101/projects/smart-homework-grader/builds/b0f47364-9d7e-4f4c-a336-130e5e8448db (versionCode 4 — المحاولة الثالثة، الأولى فشلت على fingerprint DNS — الحل: `EAS_SKIP_AUTO_FINGERPRINT=1`)
-- **معاينة APK السابقة جاهزة للتحميل**: https://expo.dev/artifacts/eas/07y5gDpKlwowVccXzpJFTnp1iLhKM_l6_SYxYicYeqI.apk (تسجيل دخول expo.dev مطلوب)
-- **آخر commit**: `2e6a346` — إصلاحات عدادات الأدمن + أخطاء الاستخراج + قراءة PDF
+- **السيرفر منشور**: revision `mosahah-api-00018-cpg` — فيه إصلاحات تواريخ الاشتراك + مفتاح Gemini جديد
+- **AAB الإنتاج جاهز**: `b0f47364` — https://expo.dev/artifacts/eas/xTown188ciKtZaGCWJLJUFC9TXkW7oFkVzz0ZW_1pKY.aab (versionCode 4)
+- **بناية preview APK جديدة شغالة على EAS** (فيها مزايا ٢٥ نوفمبر الستة) — هتحتاج لينك التحميل من صفحة البناية لما تخلص
+- **آخر commit**: `30e94c7` — مزايا المستخدم الستة + `a4ba9d2` إصلاح بيلد Docker
+- **بكرة الصبح**: نشر الـ AAB على Play Console internal testing → لقطات شاشة → إنتاج
+
+## ✅ دفعة 2026-11-25 — مزايا المستخدم الستة (commit `30e94c7`)
+
+- **بحث في قائمة الاختبارات**: خانة بحث باسم الاختبار فوق شريط المجلدات (مفتاح i18n `searchQuiz`)
+- **اختيار المجلد في إعدادات الاختبار**: رقائق «بدون مجلد» + مجلدات المعلم — يحفظ `folder_id`
+- **محاولة واحدة افتراضياً**: اختبار جديد `maxAttempts: 1` — المعلم يقدر يعدّله أو يفرّغه لـ«بلا حد»
+- **إظهار كلمة السر**: `Input.tsx` بيضيف زر 👁️ تلقائياً لأي حقل `secureTextEntry` (دخول/تسجيل/استعادة)
+- **رصيد التوكنز في بيانات الحساب (أدمن)**: سطر 💎 يعرض المتبقي (quota − used) لكل حساب له باقة — quota = `custom_tokens_millions×1e6 + extra_tokens` (نفس حساب شريط المعلم)
+- **رسالة ولي الأمر**: نص `sendWhatsApp` في `results.tsx` اتكتب تاني بنفس أسلوب نسخة AI Studio (`buildParentResultOnlyWhatsAppMessage` في `src/utils/studentPaperExport.ts`) — تحية رسمية + مادة + تاريخ + تقدير (ممتاز/جيد جداً/جيد/يحتاج متابعة) + توقيع
+
+## ✅ دفعة 2026-11-25 مساءً — جذر مشكلة «الأيام المتبقية» اتكشف واتحلّ (commits `f026be6` `f8e3d62` `a4ba9d2` — منشورة)
+
+- **الجذر**: `data/registered_users.json` (١.٢MB بتاريخ ٣١ أكتوبر) كان متخزّن في Git وبيتحط في صورة Docker عبر `COPY . .` — كل instance جديد كان يبدأ بسنابشوت قديم والـ self-heal يرجّع تواريخه المنتفخة فوق Firestore الصح → تصليحات الأدمن بتتمحي بعد كل deploy
+- **الإصلاح**: `data/` في `.dockerignore` + `COPY data` اتشال من Dockerfile + الملف اتشال من تتبع git (فيه PII) + الـ heal بقى one-shot عبر `end_date_healed` + الحساب المنتهي تاريخياً مش «active» في التصنيف (سيرفر + `categoryOf`) + `subscription_start_date/duration` بيتسجلوا في مسار الموافقة
+- **إصلاح بيانات Firestore يدوياً عبر REST** (IAM cloud-platform bypass): ٥ حسابات منتهية → `expired` • `emadws13` → end ٢٥ نوفمبر (منتهي) • `merohafez477` → end ٣٠ نوفمبر (متبقي ٥ أيام) — كلهم حسب تأكيد المستخدم «٣٠ يوم»
+- **🔑 مفتاح Gemini اتسرّب في commit** (`_patch_env2.cjs`) → اتدوّر: جديد `AIzaSyCvI1Uvw...` منشور على Cloud Run، القديم `AIzaSyA8B2HBB...` **محذوف**، الملفات المؤقتة اتشالت من الريبو
+- **أدوات REST بدون gcloud** (gcloud بيعلّق كتير): قراءة/كتابة Firestore كاملة عبر `firestore.googleapis.com` بالـ OAuth token (IAM owner بيتخطى القواعد) — قاعدة البيانات `ai-studio-3e658ca0-5c16-45ce-bb53-8aced7836d45` مش `(default)`
+
+## ✅ دفعة 2026-11-24 — دفعة الإصلاحات السبعة (منشورة)
+
+- **عداد التجريبيين = 9 وهمي**: العميل كان بيحط كل حد مش active في "trial" — دلوقتي `categoryOf` نسخة من منطق السيرفر: تجريبي فقط داخل نافذة 5 أيام (`trial_extended_until || created_at+5d`) أو طلب معلق — المنتهي بيروح "مغلق"
+- **الأيام المتبقية**: الـ self-heal اتقيّد بـ `subscription_duration_days` (أو 370 يوم لما مفيش) — مبقاش يرجّع تواريخ منتفخة/قديمة من الـ JSON فوق تفعيل جديد صحيح + `subscription_start_date` بيتحفظ دلوقتي في التفعيل اليدوي وفي sync payload
+- **«مفتاح API غير صالح» الزائف**: `handleAiError` + الفحص الداخلي كانوا بيحوّلوا **أي** خطأ 400 لرسالة المفتاح — الخطأ الحقيقي (payload/model/schema) بقى يظهر بنصه الفعلي
+- **«تعذر قراءة الملف» للـ PDF**: `DocumentPicker base64:true` كان بيفشل بصمت على الملفات الكبيرة — القراءة بقت عبر `expo-file-system/legacy` `readAsStringAsync`
+- **تحديد صفحات PDF**: حقلين «من صفحة / إلى صفحة» يظهروا للـ PDF — بتتحقق + تعليمة صفحات بتتضاف للـ prompt
+- **زر 📋 طلبات المكرر**: اتشال من toolbar أداة المستخدمين (موجود في profile.tsx أصلاً)
+- **استهلاك اليوم**: الإصلاح كان في `91c8324` أصلاً — الـ APK القديم ماكانش فيه — البناية الجديدة فيه. **لو لسه فاضي على النسخة الجديدة**: غالباً قواعد `token_usage_logs` مش منشورة — `firebase deploy --only firestore:rules`
 
 ## ✅ دفعة 2026-11-24 — دفعة الإصلاحات السبعة (منشورة)
 
@@ -19,8 +47,8 @@
 
 ## 📌 خطوات المستخدم المعلقة
 
-1. **Play Console**: إنشاء التطبيق `مصحح الواجبات الذكي` (عربي / App / Free) — قولي لما يتعمل
-2. **Firebase SHA-1**: لو متعملش — console.firebase.google.com → `gen-lang-client-0552360485` → Android `com.gergesnabil.mosahah` → Add fingerprint: `3ae068d65e9d6b4bb5841574aabf1a7c75c3327d`
+1. **Play Console**: التطبيق اتعمل ✅ (`مصحح الواجبات الذكي` / `com.gergesnabil.mosahah`) — الباقي: رفع الـ AAB على internal testing + تعبئة صفحة المتجر (كل النصوص في `mobile/store-assets/store-listing.md`) + ٦ لقطات شاشة
+2. **Firebase SHA-1**: اتعمل ✅ عبر API — البصمة `3ae068...c3327d` مسجلة، دخول جوجل شغال على الـ APK
 
 ## ✅ دفعة 2026-11-23 — مشروع EAS اتربط + بناية preview
 
