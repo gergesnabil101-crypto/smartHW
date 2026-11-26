@@ -87,7 +87,6 @@ export default function SubscriptionScreen() {
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [pricePerMillion, setPricePerMillion] = useState({ flash: 200, pro: 250 });
   const [cur, setCur] = useState('ج.م');
-  const [planOverrides, setPlanOverrides] = useState<Record<string, { monthly?: number; yearly?: number }>>({});
   const [verifying, setVerifying] = useState(false);
   const [iapApi, setIapApi] = useState<IapApi>({ connected: false, subscriptions: [], requestPurchase: async () => {}, finishTransaction: async () => {} });
   const { connected, subscriptions } = iapApi;
@@ -143,17 +142,15 @@ export default function SubscriptionScreen() {
           pro: Number(cfg?.pro_price_per_million) > 0 ? Number(cfg.pro_price_per_million) : 250,
         });
         setCur(currencyLabel(cfg));
-        if (cfg?.plan_prices) setPlanOverrides(cfg.plan_prices);
       })
       .catch(() => {});
   }, []);
 
+  // Prices are fully automatic: monthly = millions × price-per-million for that
+  // system (flash/pro), yearly = 10 months (2 months free).
   const price = useMemo(
-    () => (p: PlanOption) => {
-      const o = planOverrides[p.id];
-      return Number(cycle === 'monthly' ? (o?.monthly ?? p.monthlyPrice) : (o?.yearly ?? p.yearlyPrice)) || p.monthlyPrice;
-    },
-    [cycle, planOverrides]
+    () => (p: PlanOption) => Number(cycle === 'monthly' ? p.monthlyPrice : p.yearlyPrice) || p.monthlyPrice,
+    [cycle]
   );
 
   // --- Millions counter: builds a plan from "price per million × chosen millions" ---

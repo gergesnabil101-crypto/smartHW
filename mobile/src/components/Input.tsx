@@ -16,7 +16,7 @@ export function Input({ label, error, style, onFocus, onBlur, secureTextEntry, .
       {label ? <Text style={typography.label}>{label}</Text> : null}
       <View>
         <TextInput
-          style={[styles.input, focused && styles.inputFocused, error && styles.inputError, style]}
+          style={[styles.input, secureTextEntry && styles.inputWithEye, focused && styles.inputFocused, error && styles.inputError, style]}
           placeholderTextColor={colors.textMuted}
           secureTextEntry={secureTextEntry && !showSecret}
           onFocus={(e) => { setFocused(true); onFocus?.(e); }}
@@ -51,6 +51,7 @@ const styles = StyleSheet.create({
   },
   inputFocused: { borderColor: colors.primary, backgroundColor: colors.surface },
   inputError: { borderColor: colors.danger },
+  inputWithEye: { paddingLeft: 44 },
   eye: { position: 'absolute', left: 6, top: 0, bottom: 0, justifyContent: 'center', paddingHorizontal: 8 },
   eyeText: { fontSize: 16 },
   error: { color: colors.danger, fontSize: 12, textAlign: 'right', writingDirection: 'rtl' },
