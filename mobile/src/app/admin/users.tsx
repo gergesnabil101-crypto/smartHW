@@ -306,6 +306,11 @@ export default function AdminUsersScreen() {
           const suspended = !!item.is_suspended;
           const expired = isExpired(item);
           const days = daysLeft(item);
+          const tokenMillions =
+            Number(item.custom_tokens_millions) ||
+            Number(String(item.subscription_type || '').match(/(\d+)\s*M/i)?.[1] || 0);
+          const tokenQuota = tokenMillions * 1e6 + Number(item.extra_tokens || 0);
+          const tokensLeft = tokenQuota > 0 ? Math.max(0, tokenQuota - Number(item.tokens_used || 0)) : null;
           const isAdminUser = item.admin === true || item.role === 'admin' || (item.email || '').toLowerCase().trim() === 'gergesnabil101@gmail.com';
           const uid = item.uid || item.id;
           const busy = busyId === uid;
@@ -328,10 +333,9 @@ export default function AdminUsersScreen() {
                   <Text style={typography.caption} numberOfLines={1}>
                     🪙 اليوم: {Number(item.tokens_used_today || 0).toLocaleString('en')} • الإجمالي: {Number(item.tokens_used || 0).toLocaleString('en')}
                   </Text>
-                  {!expired && (item.extra_tokens || item.remaining_tokens !== undefined) ? (
-                    <Text style={typography.caption} numberOfLines={1}>
-                      💎 {item.remaining_tokens !== undefined ? `المتبقي: ${Number(item.remaining_tokens).toLocaleString('en')}` : ''}
-                      {item.extra_tokens ? `${item.remaining_tokens !== undefined ? ' • ' : ''}إضافي: ${Number(item.extra_tokens).toLocaleString('en')}` : ''}
+                  {tokensLeft !== null ? (
+                    <Text style={[typography.caption, { color: tokensLeft <= 0 ? colors.danger : colors.textSecondary }]} numberOfLines={1}>
+                      💎 رصيد التوكنز: {tokensLeft.toLocaleString('en')} متبقي من {tokenQuota.toLocaleString('en')}
                     </Text>
                   ) : null}
                 </View>

@@ -79,8 +79,25 @@ export default function ResultsScreen() {
     if (phone.startsWith('01')) phone = '2' + phone;
     else if (phone.startsWith('1') && phone.length === 10) phone = '20' + phone;
     const pct = r.total ? Math.round((Number(r.score) / Number(r.total)) * 100) : 0;
-    const teacherName = profile?.name || user?.displayName || '';
-    const msg = `نتيجة الطالب ${r.student_name} في اختبار «${r.quiz_title || 'اختبار'}»\nالمدرس: ${teacherName}\nالدرجة: ${r.score} / ${r.total} (${pct}%)`;
+    const rawName = (profile?.name || user?.displayName || '').trim();
+    const teacherName = rawName
+      ? (rawName.startsWith('أ/') || rawName.startsWith('أستاذ') ? rawName : `أ/ ${rawName}`)
+      : 'معلم المادة';
+    const subject = (profile?.subject || '').trim();
+    const examDate = r.created_at ? new Date(r.created_at).toLocaleDateString('ar-EG') : '';
+    let rating = 'ممتاز 🌟';
+    if (pct < 50) rating = 'يحتاج إلى مزيد من المتابعة والاجتهاد 📚';
+    else if (pct < 75) rating = 'جيد 👍';
+    else if (pct < 85) rating = 'جيد جداً 👏';
+    let msg = `السلام عليكم ورحمة الله وبركاته، تحية طيبة لولي أمر الطالب/ة: ${r.student_name} 👋\n\n`;
+    msg += `نحيطكم علماً بنتيجة نجلكم في:\n`;
+    msg += `📖 *اختبار:* ${r.quiz_title || 'الاختبار'}\n`;
+    if (subject) msg += `📚 *المادة:* ${subject}\n`;
+    msg += `👨‍🏫 *معلم المادة:* ${teacherName}\n`;
+    if (examDate) msg += `📅 *تاريخ الاختبار:* ${examDate}\n`;
+    msg += `📊 *النتيجة:* ${r.score} من ${r.total} (${pct}%)\n`;
+    msg += `🎖️ *التقدير:* ${rating}\n\n`;
+    msg += `مع خالص تحيات معلم المادة (${teacherName}) وتمنياتنا للطالب بدوام التفوق والنجاح 🌟`;
     try {
       await reviewResult(String(r.id), { reviewed_and_sent: true, reviewed_and_sent_at: new Date().toISOString() }).catch(() => {});
       await Linking.openURL(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`);

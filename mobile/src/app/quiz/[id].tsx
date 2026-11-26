@@ -11,11 +11,11 @@ import { QuestionEditor } from '../../features/builder/QuestionEditor';
 import { AiGenerateSheet } from '../../features/builder/AiGenerateSheet';
 import { StudentCodesEditor } from '../../features/builder/StudentCodesEditor';
 import { SwitchRow } from '../../components/SwitchRow';
-import { getQuizForEdit, saveQuiz } from '../../lib/services';
+import { getQuizForEdit, saveQuiz, listFolders } from '../../lib/services';
 import { API_BASE_URL, LIMITS } from '../../config';
 import { GRADE_LEVELS } from '../../constants';
 import { useAuth } from '../../store/AuthContext';
-import type { Question, Quiz } from '../../types';
+import type { Folder, Question, Quiz } from '../../types';
 import { colors, radius, typography } from '../../theme';
 
 let qCounter = 0;
@@ -42,6 +42,7 @@ export default function QuizEditorScreen() {
     questions: [],
     showResultsToStudent: true,
     is_active: true,
+    maxAttempts: 1,
   } : null);
   const [loadError, setLoadError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -49,6 +50,11 @@ export default function QuizEditorScreen() {
   const [showAi, setShowAi] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [expiresInput, setExpiresInput] = useState('');
+  const [folders, setFolders] = useState<Folder[]>([]);
+
+  useEffect(() => {
+    listFolders().then((f) => setFolders(Array.isArray(f) ? f : [])).catch(() => {});
+  }, []);
 
   const commitExpires = () => {
     const raw = expiresInput.trim();
@@ -188,8 +194,23 @@ export default function QuizEditorScreen() {
                   onBlur={commitExpires}
                   placeholder="2026-12-31"
                 />
+                <Text style={typography.label}>المجلد</Text>
+                <View style={styles.chipsWrap}>
+                  {[{ id: null, name: 'بدون مجلد' } as any, ...folders].map((f: any) => {
+                    const selected = (quiz.folder_id || null) === f.id;
+                    return (
+                      <Pressable
+                        key={String(f.id ?? 'none')}
+                        onPress={() => update({ folder_id: f.id || undefined })}
+                        style={[styles.chip, selected && styles.chipActive]}
+                      >
+                        <Text style={[styles.chipText, selected && styles.chipTextActive]}>{f.id ? `📁 ${f.name}` : f.name}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
                 <Input
-                  label="الحد الأقصى للمحاولات (فارغ = بلا حد)"
+                  label="الحد الأقصى للمحاولات (الافتراضي 1 — فارغ = بلا حد)"
                   value={quiz.maxAttempts ? String(quiz.maxAttempts) : ''}
                   onChangeText={(t) => update({ maxAttempts: t ? parseInt(t) : undefined })}
                   keyboardType="numeric"

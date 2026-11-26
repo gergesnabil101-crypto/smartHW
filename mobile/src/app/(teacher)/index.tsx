@@ -37,6 +37,7 @@ export default function DashboardScreen() {
   const [shareQuiz, setShareQuiz] = useState<Quiz | null>(null);
   const [moveQuiz, setMoveQuiz] = useState<Quiz | null>(null);
   const [busyQuizId, setBusyQuizId] = useState<string | null>(null);
+  const [quizSearch, setQuizSearch] = useState('');
 
   const load = useCallback(async () => {
     setError('');
@@ -117,8 +118,11 @@ export default function DashboardScreen() {
 
   const visibleQuizzes = useMemo(() => {
     if (!quizzes) return [];
-    return activeFolder ? quizzes.filter((q) => q.folder_id === activeFolder) : quizzes;
-  }, [quizzes, activeFolder]);
+    let list = activeFolder ? quizzes.filter((q) => q.folder_id === activeFolder) : quizzes;
+    const q = quizSearch.trim().toLowerCase();
+    if (q) list = list.filter((x) => String(x.title || '').toLowerCase().includes(q));
+    return list;
+  }, [quizzes, activeFolder, quizSearch]);
 
   const confirmDeleteQuiz = (quiz: Quiz) => {
     Alert.alert(t('delete'), `${quiz.title} — ${t('deleteQuizQ')}`, [
@@ -180,6 +184,11 @@ export default function DashboardScreen() {
 
   return (
     <Screen scroll={false}>
+      {/* Quiz search */}
+      <View style={styles.searchWrap}>
+        <Input placeholder={t('searchQuiz')} value={quizSearch} onChangeText={setQuizSearch} />
+      </View>
+
       {/* Folder filter row */}
       <View style={styles.folderRowWrap}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.folderRow}>
@@ -346,6 +355,7 @@ export default function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
+  searchWrap: { paddingHorizontal: 16, paddingTop: 8 },
   folderRowWrap: { flexShrink: 0, minHeight: 48 },
   folderRow: { gap: 8, paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center', flexDirection: 'row' },
   folderChip: {
