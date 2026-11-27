@@ -8,7 +8,12 @@
 - **AAB versionCode 7 المنشور**: `1d1326d2` — https://expo.dev/artifacts/eas/18Jy0FV1wPp-480zvyDDDqj8o5QoHXtMkC3HrWC4D0Y.aab
 - **آخر commit**: `28affeb` — expo-updates
 - **⚠️ Play Console**: versionCode 6 اتستهلك (رُفع وماتحفظش في إصدار) — جوجل بتحجز الأرقام نهائياً؛ القاعدة: Upload → استنى المعالجة → تأكد ظهور الـ bundle → **Save** قبل أي حاجة
-- **القادم**: إصدار الإنتاج production (نفس الخطوات) + إنشاء منتجات الاشتراك الـ١٠ في Monetize → Subscriptions
+- **القادم — خطوتان يدويتان (دقيقتين) ثم كل شيء برمجي**:
+  1. Play Console → Setup → API access → Link a Google Cloud project → اختار **FRISR PROJECT** (`gen-lang-client-0552360485`)
+  2. نفس الصفحة → Service accounts → `play-submit@gen-lang-client-0552360485.iam.gserviceaccount.com` → Grant access → **Admin** (أو: View app info + Manage orders/subscriptions + Manage store presence)
+  3. بعدها أنا أنشئ منتجات الاشتراك الـ١٠ عبر `monetization.subscriptions.create` (IDs في store-listing.md)
+- **مفتاح SA جاهز محلياً**: `mobile/google-play-service-account.json` (gitignored — يفعّل `eas submit` لاحقاً)
+- **بعد المنتجات**: ترقية الإصدار لـ production (نفس الخطوات + مراجعة جوجل)
 
 ## ✅ دفعة 2026-11-26 (commits `6e53185` `28affeb`)
 
