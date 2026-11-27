@@ -9,9 +9,13 @@ import { api } from '../../lib/api';
  * The native module does NOT exist inside Expo Go, so the module is loaded
  * lazily the first time a sign-in is attempted — importing this file is always
  * safe. GOOGLE_SIGNIN_ENABLED additionally requires the web OAuth client id,
- * which is configured via EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID (.env / eas env).
+ * resolved from EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID (.env / eas env) first, then
+ * expo.extra.googleWebClientId as a build-independent fallback.
  */
-const WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
+const WEB_CLIENT_ID =
+  process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ||
+  (Constants.expoConfig?.extra as { googleWebClientId?: string } | undefined)?.googleWebClientId ||
+  '';
 
 export const GOOGLE_SIGNIN_ENABLED =
   !!WEB_CLIENT_ID &&

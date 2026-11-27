@@ -62,6 +62,7 @@
     ],
     "extra": {
       "apiBaseUrl": "https://mosahah-api-609470896445.europe-west1.run.app",
+      "googleWebClientId": "609470896445-nfc294qc24hulqrf3gf6rvoeflehtpii.apps.googleusercontent.com",
       "paymentsMode": "iap",
       "router": {
         "asyncRoutes": {
