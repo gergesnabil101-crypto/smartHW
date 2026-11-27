@@ -1,12 +1,23 @@
-# نقطة استئناف المشروع — 2026-11-25
+# نقطة استئناف المشروع — 2026-11-26
 
 ## 🚀 الحالة الحالية
 
-- **السيرفر منشور**: revision `mosahah-api-00018-cpg` — فيه إصلاحات تواريخ الاشتراك + مفتاح Gemini جديد
-- **AAB الإنتاج جاهز**: `b0f47364` — https://expo.dev/artifacts/eas/xTown188ciKtZaGCWJLJUFC9TXkW7oFkVzz0ZW_1pKY.aab (versionCode 4)
-- **بناية preview APK جديدة شغالة على EAS** (فيها مزايا ٢٥ نوفمبر الستة) — هتحتاج لينك التحميل من صفحة البناية لما تخلص
-- **آخر commit**: `30e94c7` — مزايا المستخدم الستة + `a4ba9d2` إصلاح بيلد Docker
-- **بكرة الصبح**: نشر الـ AAB على Play Console internal testing → لقطات شاشة → إنتاج
+- **🎉 أول إصدار على Google Play اتقبل**: إصدار `1.0.0` (versionCode **7**) على **internal testing** — التطبيق `com.gergesnabil.mosahah` في إدخال Play Console **الجديد** (القديم اتمسح — كان محجوز على اسم غلط `com.gergesnabil101.mosahah`)
+- **السيرفر منشور**: revision `mosahah-api-00018-cpg`
+- **APK المعاينة الأخير** (فيه كل حاجة): `f304035f` — https://expo.dev/artifacts/eas/kp3oVg-6Jjjmzlnh8C1lXrC60vzIF-WckpJhW0bPi6E.apk
+- **AAB versionCode 7 المنشور**: `1d1326d2` — https://expo.dev/artifacts/eas/18Jy0FV1wPp-480zvyDDDqj8o5QoHXtMkC3HrWC4D0Y.aab
+- **آخر commit**: `28affeb` — expo-updates
+- **⚠️ Play Console**: versionCode 6 اتستهلك (رُفع وماتحفظش في إصدار) — جوجل بتحجز الأرقام نهائياً؛ القاعدة: Upload → استنى المعالجة → تأكد ظهور الـ bundle → **Save** قبل أي حاجة
+- **القادم**: إصدار الإنتاج production (نفس الخطوات) + إنشاء منتجات الاشتراك الـ١٠ في Monetize → Subscriptions
+
+## ✅ دفعة 2026-11-26 (commits `6e53185` `28affeb`)
+
+- **زر العين مش بيغطي النص**: `paddingLeft: 44` تحت زر 👁️ في `Input.tsx` للحقول الآمنة
+- **تسعير تلقائي بالكامل**: اتشال `plan_prices` override من `subscription.tsx` — شهري = ملايين × سعر المليون لكل نظام، سنوي = ×١٠ (شهرين مجاناً)
+- **مضاعفات الأنظمة مؤكدة**: `computeBillableTokens` بيطبق مضاعف كل نظام على النموذج الفعلي المستخدم (`isProModel`) ومتغذّى من `platform_config/pricing`
+- **برومبت الاستخراج اتعزّز** (`EXTRACTION_INSTRUCTIONS` في `AiGenerateSheet.tsx`): قراءة بأقصى دقة للمرفقات + الكلمات بلون مختلف/مظللة (غالباً بتعلّم الإجابة الصح) + الممسوحة وخط اليد
+- **expo-updates ~58**: `runtimeVersion: fingerprint` + `updates.url` + قناتا `preview`/`production` في eas.json — تعديلات JS بعد كده توصل OTA بـ `eas update --channel <قناة>` بدون بناية
+- **توثيق Expo**: الباسورد مش شغال مع `loginAsync` (الحساب غالباً Google-SSO) — الحل: Personal Access Token من expo.dev → `EXPO_TOKEN` env var (`eas whoami`/`build`/`update` كلهم شغالين بيه)
 
 ## ✅ دفعة 2026-11-25 — مزايا المستخدم الستة (commit `30e94c7`)
 
