@@ -4739,16 +4739,16 @@ ${reqPoints ? `عدد النقاط المطلوبة للإجابة: ${reqPoints}
   // ---- Google Play Billing: server-side purchase verification ----
   // Play product IDs → token plans (must match products created in Play Console).
   const PLAY_PRODUCTS: Record<string, { millions: number; pro: boolean }> = {
-    token_1M: { millions: 1, pro: false },
-    token_2M: { millions: 2, pro: false },
-    token_3M: { millions: 3, pro: false },
-    token_5M: { millions: 5, pro: false },
-    token_10M: { millions: 10, pro: false },
-    pro_token_1M: { millions: 1, pro: true },
-    pro_token_2M: { millions: 2, pro: true },
-    pro_token_3M: { millions: 3, pro: true },
-    pro_token_5M: { millions: 5, pro: true },
-    pro_token_10M: { millions: 10, pro: true },
+    token_1m: { millions: 1, pro: false },
+    token_2m: { millions: 2, pro: false },
+    token_3m: { millions: 3, pro: false },
+    token_5m: { millions: 5, pro: false },
+    token_10m: { millions: 10, pro: false },
+    pro_token_1m: { millions: 1, pro: true },
+    pro_token_2m: { millions: 2, pro: true },
+    pro_token_3m: { millions: 3, pro: true },
+    pro_token_5m: { millions: 5, pro: true },
+    pro_token_10m: { millions: 10, pro: true },
   };
   const ANDROID_PACKAGE = process.env.ANDROID_PACKAGE_NAME || 'com.gergesnabil.mosahah';
   const playAuth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/androidpublisher'] });

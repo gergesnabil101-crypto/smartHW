@@ -172,7 +172,7 @@ export default function SubscriptionScreen() {
     const m = millions[g] || 1;
     const pro = g === 'pro_tokens';
     const ppm = pro ? pricePerMillion.pro : pricePerMillion.flash;
-    const sku = `${pro ? 'pro_' : ''}token_${m}M`;
+    const sku = `${pro ? 'pro_' : ''}token_${m}m`;
     const base = PLANS.find((p) => p.id === sku);
     return {
       id: sku,

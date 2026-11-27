@@ -250,7 +250,7 @@ export interface TokenPlan {
 
 export const TOKEN_PRESET_PLANS: TokenPlan[] = [
   {
-    id: 'token_1M',
+    id: 'token_m',
     millions: 1,
     monthlyPrice: 200,
     yearlyPrice: 2000,
@@ -258,7 +258,7 @@ export const TOKEN_PRESET_PLANS: TokenPlan[] = [
     description: 'تكفي حتى 2,000 إجابة مقالية مصححة شهرياً'
   },
   {
-    id: 'token_2M',
+    id: 'token_m',
     millions: 2,
     monthlyPrice: 400,
     yearlyPrice: 4000,
@@ -267,7 +267,7 @@ export const TOKEN_PRESET_PLANS: TokenPlan[] = [
     popular: true
   },
   {
-    id: 'token_3M',
+    id: 'token_m',
     millions: 3,
     monthlyPrice: 600,
     yearlyPrice: 6000,
@@ -275,7 +275,7 @@ export const TOKEN_PRESET_PLANS: TokenPlan[] = [
     description: 'تكفي حتى 6,000 إجابة مقالية مصححة شهرياً'
   },
   {
-    id: 'token_5M',
+    id: 'token_m',
     millions: 5,
     monthlyPrice: 1000,
     yearlyPrice: 10000,
@@ -283,7 +283,7 @@ export const TOKEN_PRESET_PLANS: TokenPlan[] = [
     description: 'تكفي حتى 10,000 إجابة مقالية مصححة شهرياً'
   },
   {
-    id: 'token_10M',
+    id: 'token_m',
     millions: 10,
     monthlyPrice: 2000,
     yearlyPrice: 20000,
@@ -294,7 +294,7 @@ export const TOKEN_PRESET_PLANS: TokenPlan[] = [
 
 export const PRO_TOKEN_PRESET_PLANS: TokenPlan[] = [
   {
-    id: 'pro_token_1M',
+    id: 'pro_token_m',
     millions: 1,
     monthlyPrice: 250,
     yearlyPrice: 2500,
@@ -302,7 +302,7 @@ export const PRO_TOKEN_PRESET_PLANS: TokenPlan[] = [
     description: 'استدلال وتفكير عميق، تكفي حتى 1,600 إجابة مقالية مصححة شهرياً (المخرجات × 6)'
   },
   {
-    id: 'pro_token_2M',
+    id: 'pro_token_m',
     millions: 2,
     monthlyPrice: 500,
     yearlyPrice: 5000,
@@ -311,7 +311,7 @@ export const PRO_TOKEN_PRESET_PLANS: TokenPlan[] = [
     popular: true
   },
   {
-    id: 'pro_token_3M',
+    id: 'pro_token_m',
     millions: 3,
     monthlyPrice: 750,
     yearlyPrice: 7500,
@@ -319,7 +319,7 @@ export const PRO_TOKEN_PRESET_PLANS: TokenPlan[] = [
     description: 'استدلال وتفكير عميق، تكفي حتى 4,800 إجابة مقالية مصححة شهرياً (المخرجات × 6)'
   },
   {
-    id: 'pro_token_5M',
+    id: 'pro_token_m',
     millions: 5,
     monthlyPrice: 1250,
     yearlyPrice: 12500,
@@ -327,7 +327,7 @@ export const PRO_TOKEN_PRESET_PLANS: TokenPlan[] = [
     description: 'استدلال وتفكير عميق، تكفي حتى 8,000 إجابة مقالية مصححة شهرياً (المخرجات × 6)'
   },
   {
-    id: 'pro_token_10M',
+    id: 'pro_token_m',
     millions: 10,
     monthlyPrice: 2500,
     yearlyPrice: 25000,
@@ -468,7 +468,7 @@ export const getProEquivalentPlan = (
 
   // Default fallback (e.g. for free_trial or general account) -> Pro 1M tokens
   return {
-    proPlanId: 'pro_token_1M',
+    proPlanId: 'pro_token_m',
     name: 'باقة 1 مليون توكن (برو 👑)',
     tokensInMillions: 1,
     monthlyPrice: 250,
