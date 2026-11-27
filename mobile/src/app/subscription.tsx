@@ -190,7 +190,7 @@ export default function SubscriptionScreen() {
 
   // IAP can only purchase sizes that exist as Play products.
   const iapBuyable = (p: PlanOption | null) =>
-    !IAP_AVAILABLE || IAP_SIZES.includes(Number(((p?.id.match(/(\d+)M/) || [])[1]) || 0));
+    !IAP_AVAILABLE || IAP_SIZES.includes(Number(((p?.id.match(/(\d+)m/) || [])[1]) || 0));
 
 
   const MILLION = 1_000_000;
@@ -252,7 +252,7 @@ export default function SubscriptionScreen() {
     setSubmitting(true);
     try {
       const ref = doc(collection(db, 'subscription_requests'));
-      const mNum = Number((selected.id.match(/(\d+)M/) || [])[1]) || 1;
+      const mNum = Number((selected.id.match(/(\d+)m/) || [])[1]) || 1;
       await setDoc(ref, {
         id: ref.id,
         user_id: user.uid,
